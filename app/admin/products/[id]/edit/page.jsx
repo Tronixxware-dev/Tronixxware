@@ -68,9 +68,8 @@ export default function EditProductPage() {
         product && (
           <div className="mt-6">
             <ProductForm
-              initialProduct={product}
+              product={product}
               onSubmit={handleSubmit}
-              submitting={submitting}
               submitLabel="Save changes"
             />
           </div>

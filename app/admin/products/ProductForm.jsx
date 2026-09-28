@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { adminUploadImage } from '../../lib/admin-auth';
 import { useExchangeRate, formatNaira } from '../../lib/useExchangeRate';
@@ -12,6 +12,7 @@ function productToFormState(product) {
     name: product?.name || '',
     brand: product?.brand || '',
     image: product?.image || '',
+    gallery: product?.gallery?.length ? [...product.gallery] : [],
     price: product?.price != null ? String(product.price) : '',
     compareAtPrice: product?.compareAtPrice != null ? String(product.compareAtPrice) : '',
     unitStock: product?.unitStock != null ? String(product.unitStock) : '0',
@@ -32,6 +33,7 @@ function formStateToPayload(form) {
     name: form.name.trim(),
     brand: form.brand.trim(),
     image: form.image.trim(),
+    gallery: form.gallery,
     price: Number(form.price),
     unitStock: Number(form.unitStock),
     condition: form.condition,
@@ -44,10 +46,6 @@ function formStateToPayload(form) {
 
   payload.compareAtPrice = form.compareAtPrice.trim() ? Number(form.compareAtPrice) : null;
 
-  // rating/reviews have no "unset" path on the backend (unlike
-  // compareAtPrice/colors/bulk) — Number(null) is 0, not NaN, so sending
-  // null here would silently save a rating of 0 instead of leaving it
-  // alone. Omit the key entirely when the field is blank instead.
   if (form.rating.trim()) payload.rating = Number(form.rating);
   if (form.reviews.trim()) payload.reviews = Number(form.reviews);
 
@@ -68,6 +66,23 @@ export default function ProductForm({ product, onSubmit, submitLabel = 'Save pro
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [localPreview, setLocalPreview] = useState(null);
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const [galleryError, setGalleryError] = useState('');
+
+  // The edit page fetches the product asynchronously, so it may still be
+  // loading (or a cold-starting Render backend may take a while) when this
+  // form first mounts. We sync once per actual product — tracked by id —
+  // rather than on every prop change, so this never clobbers edits you've
+  // already made once the real data has loaded.
+  const loadedProductKey = useRef(null);
+  useEffect(() => {
+    const key = product?.id ?? product?._id ?? null;
+    if (key && key !== loadedProductKey.current) {
+      loadedProductKey.current = key;
+      setForm(productToFormState(product));
+    }
+  }, [product]);
 
   function update(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -78,18 +93,44 @@ export default function ProductForm({ product, onSubmit, submitLabel = 'Save pro
     if (!file) return;
 
     setUploadError('');
+    setImageLoadFailed(false);
     setLocalPreview(URL.createObjectURL(file));
 
     setUploading(true);
     try {
       const url = await adminUploadImage(file);
       update('image', url);
+      // Switch over to the real hosted URL now that it exists — holding
+      // onto the local blob preview past this point is what made the
+      // thumbnail occasionally go blank even though the upload succeeded.
+      setLocalPreview(null);
     } catch (err) {
       setUploadError(err.message || 'Image upload failed');
     } finally {
       setUploading(false);
       e.target.value = '';
     }
+  }
+
+  async function handleGallerySelect(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setGalleryError('');
+    setGalleryUploading(true);
+    try {
+      const uploadedUrls = await Promise.all(files.map((file) => adminUploadImage(file)));
+      setForm((prev) => ({ ...prev, gallery: [...prev.gallery, ...uploadedUrls] }));
+    } catch (err) {
+      setGalleryError(err.message || 'One or more gallery images failed to upload');
+    } finally {
+      setGalleryUploading(false);
+      e.target.value = '';
+    }
+  }
+
+  function removeGalleryImage(idx) {
+    setForm((prev) => ({ ...prev, gallery: prev.gallery.filter((_, i) => i !== idx) }));
   }
 
   function updateSpec(idx, value) {
@@ -160,18 +201,22 @@ export default function ProductForm({ product, onSubmit, submitLabel = 'Save pro
       )}
 
       <div>
-        <label className="block text-sm font-medium text-stone-700">Product image</label>
+        <label className="block text-sm font-medium text-stone-700">Product image (cover)</label>
         <div className="mt-2 flex items-center gap-4">
-          <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-md border border-stone-200 bg-stone-50">
-            {localPreview || form.image ? (
+          <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-md border border-stone-200 bg-stone-50">
+            {(localPreview || form.image) && !imageLoadFailed ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={localPreview || form.image}
                 alt="Product preview"
                 className="h-full w-full object-cover"
+                onError={() => setImageLoadFailed(true)}
+                onLoad={() => setImageLoadFailed(false)}
               />
             ) : (
-              <span className="font-mono text-[10px] text-stone-400">No image</span>
+              <span className="px-1 text-center font-mono text-[10px] text-stone-400">
+                {imageLoadFailed ? 'Image failed to load' : 'No image'}
+              </span>
             )}
           </div>
           <div className="flex-1">
@@ -189,6 +234,49 @@ export default function ProductForm({ product, onSubmit, submitLabel = 'Save pro
             )}
           </div>
         </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-stone-700">Gallery (additional photos)</label>
+        <div className="mt-2 flex flex-wrap gap-3">
+          {form.gallery.map((url, idx) => (
+            <div
+              key={idx}
+              className="relative h-20 w-20 shrink-0 overflow-hidden rounded-md border border-stone-200 bg-stone-50"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={url}
+                alt={`Gallery ${idx + 1}`}
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => removeGalleryImage(idx)}
+                className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-stone-900 text-[10px] text-white hover:bg-red-600"
+                aria-label="Remove gallery image"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <label className="flex h-20 w-20 shrink-0 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-stone-300 text-center text-[10px] text-stone-400 hover:border-stone-400 hover:text-stone-600">
+            + Add
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/avif"
+              multiple
+              onChange={handleGallerySelect}
+              disabled={galleryUploading}
+              className="hidden"
+            />
+          </label>
+        </div>
+        {galleryUploading && <p className="mt-1 font-mono text-xs text-stone-400">Uploading…</p>}
+        {galleryError && <p className="mt-1 text-xs text-red-600">{galleryError}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -418,7 +506,7 @@ export default function ProductForm({ product, onSubmit, submitLabel = 'Save pro
       <div className="flex items-center gap-3 border-t border-stone-100 pt-6">
         <button
           type="submit"
-          disabled={saving || uploading}
+          disabled={saving || uploading || galleryUploading}
           className="rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50"
         >
           {saving ? 'Saving…' : submitLabel}

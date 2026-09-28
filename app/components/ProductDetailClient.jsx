@@ -12,6 +12,9 @@ export default function ProductDetailClient({ product }) {
   const [quantity, setQuantity] = useState(1);
   const [justAdded, setJustAdded] = useState(false);
 
+  const images = [product.image, ...(product.gallery || [])].filter(Boolean);
+  const [selectedImage, setSelectedImage] = useState(product.image);
+
   const discount = product.compareAtPrice
     ? Math.round(100 - (product.price / product.compareAtPrice) * 100)
     : null;
@@ -28,19 +31,45 @@ export default function ProductDetailClient({ product }) {
 
   return (
     <div className="grid gap-10 lg:grid-cols-2 lg:gap-16">
-      <div className="relative aspect-square bg-stone-100">
-        <Image
-          src={product.image}
-          alt={product.name}
-          fill
-          className="object-contain p-10"
-          sizes="(min-width: 1024px) 50vw, 100vw"
-          priority
-        />
-        {discount && (
-          <span className="absolute left-4 top-4 rounded-full bg-red-600 px-3 py-1 font-mono text-xs font-semibold text-white">
-            -{discount}%
-          </span>
+      <div>
+        <div className="relative aspect-square bg-stone-100">
+          <Image
+            src={selectedImage}
+            alt={product.name}
+            fill
+            className="object-contain p-10"
+            sizes="(min-width: 1024px) 50vw, 100vw"
+            priority
+          />
+          {discount && (
+            <span className="absolute left-4 top-4 rounded-full bg-red-600 px-3 py-1 font-mono text-xs font-semibold text-white">
+              -{discount}%
+            </span>
+          )}
+        </div>
+
+        {images.length > 1 && (
+          <div className="mt-4 flex flex-wrap gap-3">
+            {images.map((img, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setSelectedImage(img)}
+                aria-label={`View photo ${idx + 1}`}
+                className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-md border-2 bg-stone-100 transition-colors ${
+                  selectedImage === img ? 'border-stone-900' : 'border-transparent hover:border-stone-300'
+                }`}
+              >
+                <Image
+                  src={img}
+                  alt={`${product.name} photo ${idx + 1}`}
+                  fill
+                  className="object-contain p-1.5"
+                  sizes="64px"
+                />
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
