@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { adminFetch } from '../../lib/admin-auth';
 
 export default function AdminProductsPage() {
@@ -48,9 +49,16 @@ export default function AdminProductsPage() {
           href="/admin/products/new"
           className="rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700"
         >
-          + New product
+          + Add product
         </Link>
       </div>
+
+      <nav className="mt-4 flex gap-4 border-b border-stone-200 pb-3 font-mono text-xs uppercase tracking-widest text-stone-500">
+        <Link href="/admin/orders" className="hover:text-stone-900">
+          Orders
+        </Link>
+        <span className="text-stone-900">Products</span>
+      </nav>
 
       {error && (
         <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -61,53 +69,64 @@ export default function AdminProductsPage() {
       {loading ? (
         <p className="mt-6 font-mono text-sm text-stone-400">Loading…</p>
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-md border border-stone-200 bg-white">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-stone-200 bg-stone-50 font-mono text-xs uppercase tracking-widest text-stone-500">
-              <tr>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Category</th>
-                <th className="px-4 py-3">Price</th>
-                <th className="px-4 py-3">Stock</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {products.map((p) => (
-                <tr key={p.id}>
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-stone-900">{p.name}</p>
-                    <p className="font-mono text-xs text-stone-400">{p.brand}</p>
-                  </td>
-                  <td className="px-4 py-3 text-stone-600">{p.category}</td>
-                  <td className="px-4 py-3 font-mono text-stone-900">${p.price.toLocaleString()}</td>
-                  <td className="px-4 py-3 font-mono text-stone-900">{p.unitStock}</td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/admin/products/${p.id}/edit`}
-                      className="mr-4 font-mono text-xs uppercase tracking-widest text-stone-500 hover:text-stone-900"
-                    >
-                      Edit
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(p.id, p.name)}
-                      className="font-mono text-xs uppercase tracking-widest text-stone-500 hover:text-red-600"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {products.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-stone-400">
-                    No products yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="mt-6 space-y-3">
+          {products.map((product) => (
+            <div
+              key={product.id}
+              className="flex flex-wrap items-center gap-4 rounded-md border border-stone-200 bg-white p-4"
+            >
+              <div className="relative h-14 w-14 flex-shrink-0 bg-stone-100">
+                <Image
+                  src={product.image}
+                  alt={product.name}
+                  fill
+                  className="object-contain p-1"
+                  sizes="56px"
+                />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="font-mono text-[11px] uppercase tracking-widest text-stone-400">
+                  {product.brand}
+                </p>
+                <p className="truncate text-sm font-medium text-stone-900">{product.name}</p>
+                <p className="mt-0.5 font-mono text-xs text-stone-500">id: {product.id}</p>
+              </div>
+
+              <div className="text-right">
+                <p className="mono-tag font-mono text-sm font-semibold text-stone-900">
+                  ${Number(product.price).toLocaleString()}
+                </p>
+                <p
+                  className={`font-mono text-xs ${
+                    product.unitStock > 0 ? 'text-stone-500' : 'text-red-600'
+                  }`}
+                >
+                  {product.unitStock > 0 ? `${product.unitStock} in stock` : 'Out of stock'}
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <Link
+                  href={`/admin/products/${product.id}/edit`}
+                  className="rounded-md border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-50"
+                >
+                  Edit
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(product.id, product.name)}
+                  className="rounded-md border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-500 hover:border-red-300 hover:text-red-600"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {products.length === 0 && (
+            <p className="font-mono text-sm text-stone-400">No products yet.</p>
+          )}
         </div>
       )}
     </div>

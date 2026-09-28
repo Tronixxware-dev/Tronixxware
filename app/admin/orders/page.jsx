@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { adminFetch } from '../../lib/admin-auth';
 
 const STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
@@ -51,6 +52,13 @@ export default function AdminOrdersPage() {
   return (
     <div>
       <h1 className="text-xl font-semibold text-stone-900">Orders</h1>
+
+      <nav className="mt-4 flex gap-4 border-b border-stone-200 pb-3 font-mono text-xs uppercase tracking-widest text-stone-500">
+        <span className="text-stone-900">Orders</span>
+        <Link href="/admin/products" className="hover:text-stone-900">
+          Products
+        </Link>
+      </nav>
 
       {error && (
         <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

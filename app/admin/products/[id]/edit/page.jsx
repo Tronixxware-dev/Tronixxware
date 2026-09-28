@@ -2,62 +2,80 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import AdminProductForm from '../../../../components/AdminProductForm';
 import { adminFetch } from '../../../../lib/admin-auth';
+import ProductForm from '../../ProductForm';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export default function EditProductPage() {
+  const { id } = useParams();
   const router = useRouter();
-  const params = useParams();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    async function load() {
-      try {
-        const res = await adminFetch(`/api/products/${params.id}`);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load product');
-        setProduct(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, [params.id]);
+    loadProduct();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
-  async function handleUpdate(payload) {
-    const res = await adminFetch(`/api/products/${params.id}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Failed to update product');
+  async function loadProduct() {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_URL}/api/products/${id}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load product');
+      setProduct(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    router.push('/admin/products');
   }
 
-  if (loading) {
-    return <p className="font-mono text-sm text-stone-400">Loading…</p>;
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-        {error}
-      </div>
-    );
+  async function handleSubmit(payload) {
+    setSubmitting(true);
+    setError('');
+    try {
+      const res = await adminFetch(`/api/products/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update product');
+      router.push('/admin/products');
+    } catch (err) {
+      setError(err.message);
+      setSubmitting(false);
+    }
   }
 
   return (
     <div>
       <h1 className="text-xl font-semibold text-stone-900">Edit product</h1>
-      <div className="mt-6">
-        <AdminProductForm initialData={product} onSubmit={handleUpdate} submitLabel="Save changes" />
-      </div>
+
+      {error && (
+        <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <p className="mt-6 font-mono text-sm text-stone-400">Loading…</p>
+      ) : (
+        product && (
+          <div className="mt-6">
+            <ProductForm
+              initialProduct={product}
+              onSubmit={handleSubmit}
+              submitting={submitting}
+              submitLabel="Save changes"
+            />
+          </div>
+        )
+      )}
     </div>
   );
 }

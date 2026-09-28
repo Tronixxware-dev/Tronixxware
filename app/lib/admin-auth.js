@@ -5,27 +5,17 @@ const TOKEN_KEY = 'tronixxware_admin_token';
 
 export function getAdminToken() {
   if (typeof window === 'undefined') return null;
-  try {
-    return window.localStorage.getItem(TOKEN_KEY);
-  } catch {
-    return null;
-  }
+  return localStorage.getItem(TOKEN_KEY);
 }
 
 export function setAdminToken(token) {
-  try {
-    window.localStorage.setItem(TOKEN_KEY, token);
-  } catch {
-    // worst case the admin just has to log in again next request
-  }
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(TOKEN_KEY, token);
 }
 
 export function clearAdminToken() {
-  try {
-    window.localStorage.removeItem(TOKEN_KEY);
-  } catch {
-    // ignore
-  }
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(TOKEN_KEY);
 }
 
 export async function adminLogin(email, password) {
@@ -42,34 +32,47 @@ export async function adminLogin(email, password) {
 
 export function adminLogout() {
   clearAdminToken();
-  if (typeof window !== 'undefined') {
-    window.location.href = '/admin/login';
-  }
 }
 
-// Wraps fetch for admin-only endpoints: attaches the bearer token, and
-// bounces to the login page if it's missing, invalid, or expired.
+// Wraps fetch with the admin Bearer token attached. Leaves Content-Type
+// alone when the body is FormData (e.g. an image upload) — the browser
+// needs to set its own multipart boundary, which a hardcoded
+// "application/json" header would break.
 export async function adminFetch(path, options = {}) {
   const token = getAdminToken();
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
 
-  if (!token) {
-    adminLogout();
-    throw new Error('Not logged in');
-  }
+  const headers = {
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {}),
+  };
 
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`,
-    },
+    headers,
   });
 
-  if (res.status === 401 || res.status === 403) {
-    adminLogout();
-    throw new Error('Your admin session expired — please log in again');
+  if (res.status === 401) {
+    clearAdminToken();
+    if (typeof window !== 'undefined') {
+      window.location.href = '/admin/login';
+    }
   }
 
   return res;
+}
+
+// Uploads a single image file for a product and returns its hosted URL.
+export async function adminUploadImage(file) {
+  const formData = new FormData();
+  formData.append('image', file);
+
+  const res = await adminFetch('/api/products/upload-image', {
+    method: 'POST',
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Image upload failed');
+  return data.url;
 }
