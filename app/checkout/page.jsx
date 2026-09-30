@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '../lib/cart-context';
 import { useExchangeRate, formatNaira } from '../lib/useExchangeRate';
+import { getCustomerToken, getStoredCustomer, customerFetch, clearCustomerSession } from '../lib/customer-auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -28,6 +29,7 @@ function Field({ label, name, value, onChange, error, type = 'text', full = fals
 export default function CheckoutPage() {
   const { items, subtotal } = useCart();
   const rate = useExchangeRate();
+  const [account, setAccount] = useState(null); // logged-in customer, or null for guest
   const [form, setForm] = useState({
     fullName: '',
     email: '',
@@ -43,9 +45,29 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
+  // If the customer is already logged in, prefill their contact details so
+  // they don't have to retype them — still fully editable, and a guest can
+  // just fill the form as before.
+  useEffect(() => {
+    const stored = getStoredCustomer();
+    if (!stored) return;
+    setAccount(stored);
+    setForm((f) => ({
+      ...f,
+      fullName: f.fullName || stored.fullName || '',
+      email: f.email || stored.email || '',
+      phone: f.phone || stored.phone || '',
+    }));
+  }, []);
+
   function handleChange(e) {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
+  }
+
+  function handleLogout() {
+    clearCustomerSession();
+    setAccount(null);
   }
 
   function validate() {
@@ -69,9 +91,11 @@ export default function CheckoutPage() {
     setSubmitError('');
 
     try {
-      const res = await fetch(`${API_URL}/api/payments/initialize`, {
+      // customerFetch attaches the logged-in customer's token automatically
+      // (so the order gets linked to their account for order history) and
+      // works exactly like a normal fetch for a guest with no token at all.
+      const res = await customerFetch('/api/payments/initialize', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: items.map((line) => ({
             productId: line.id,
@@ -140,6 +164,28 @@ export default function CheckoutPage() {
           Tronixxware / Checkout
         </p>
         <h1 className="mt-2 text-2xl font-semibold text-stone-900 sm:text-3xl">Checkout</h1>
+
+        {account ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
+            <span>
+              Checking out as <span className="font-medium text-stone-900">{account.email || account.phone}</span>
+            </span>
+            <button type="button" onClick={handleLogout} className="font-mono text-xs uppercase tracking-widest text-stone-500 hover:text-stone-900">
+              Not you? Log out
+            </button>
+          </div>
+        ) : (
+          <div className="mt-4 rounded-md border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
+            <Link href="/account/login?redirect=/checkout" className="font-medium text-stone-900 underline">
+              Log in
+            </Link>{' '}
+            for faster checkout, or{' '}
+            <Link href="/account/register?redirect=/checkout" className="font-medium text-stone-900 underline">
+              create an account
+            </Link>{' '}
+            to track this order later. Guest checkout works too — no account needed.
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="mt-8 grid gap-10 lg:grid-cols-3 lg:gap-16">
           <div className="space-y-6 lg:col-span-2">

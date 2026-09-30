@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import ProductCard from './ProductCard';
 import CategoryFilterBar from './CategoryFilterBar';
 
@@ -8,6 +9,17 @@ export default function ShopClient({ products, categories }) {
   const [activeCategory, setActiveCategory] = useState('all');
   const [sort, setSort] = useState('featured');
   const [bulkOnly, setBulkOnly] = useState(false);
+
+  const searchParams = useSearchParams();
+  const urlCategory = searchParams.get('category');
+  const appliedUrlCategory = useRef(null);
+
+  useEffect(() => {
+    if (urlCategory && urlCategory !== appliedUrlCategory.current) {
+      appliedUrlCategory.current = urlCategory;
+      setActiveCategory(urlCategory);
+    }
+  }, [urlCategory]);
 
   const filtered = useMemo(() => {
     let list = [...products];
