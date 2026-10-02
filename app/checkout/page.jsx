@@ -17,7 +17,7 @@ function Field({ label, name, value, onChange, error, type = 'text', full = fals
         name={name}
         value={value}
         onChange={onChange}
-        className={`mt-1.5 w-full rounded-md border px-3 py-2 text-sm text-stone-900 focus:outline-none ${
+        className={`mt-1 w-full rounded-md border px-3 py-1.5 text-sm text-stone-900 focus:outline-none ${
           error ? 'border-red-400 focus:border-red-500' : 'border-stone-300 focus:border-stone-500'
         }`}
       />
@@ -36,7 +36,6 @@ export default function CheckoutPage() {
     address: '',
     city: '',
     state: '',
-    postalCode: '',
     country: '',
     notes: '',
   });
@@ -70,7 +69,7 @@ export default function CheckoutPage() {
   }
 
   function validate() {
-    const required = ['fullName', 'email', 'phone', 'address', 'city', 'state', 'postalCode', 'country'];
+    const required = ['fullName', 'email', 'phone', 'address', 'city', 'state', 'country'];
     const next = {};
     required.forEach((field) => {
       if (!form[field].trim()) next[field] = 'Required';
@@ -110,7 +109,6 @@ export default function CheckoutPage() {
             address: form.address,
             city: form.city,
             state: form.state,
-            postalCode: form.postalCode,
             country: form.country,
           },
           notes: form.notes,
@@ -186,13 +184,13 @@ export default function CheckoutPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-8 grid gap-10 lg:grid-cols-3 lg:gap-16">
-          <div className="space-y-6 lg:col-span-2">
+        <form onSubmit={handleSubmit} className="mt-6 grid gap-8 lg:grid-cols-3 lg:gap-12">
+          <div className="space-y-5 lg:col-span-2">
             <section>
               <h2 className="text-sm font-semibold uppercase tracking-widest text-stone-500">
                 Contact
               </h2>
-              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <div className="mt-2.5 grid gap-3 sm:grid-cols-2">
                 <Field label="Full name" name="fullName" value={form.fullName} onChange={handleChange} error={errors.fullName} />
                 <Field label="Email" name="email" type="email" value={form.email} onChange={handleChange} error={errors.email} />
                 <Field label="Phone" name="phone" value={form.phone} onChange={handleChange} error={errors.phone} />
@@ -203,12 +201,11 @@ export default function CheckoutPage() {
               <h2 className="text-sm font-semibold uppercase tracking-widest text-stone-500">
                 Delivery address
               </h2>
-              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <div className="mt-2.5 grid gap-3 sm:grid-cols-2">
                 <Field label="Street address" name="address" value={form.address} onChange={handleChange} error={errors.address} full />
                 <Field label="City" name="city" value={form.city} onChange={handleChange} error={errors.city} />
                 <Field label="State / Province" name="state" value={form.state} onChange={handleChange} error={errors.state} />
-                <Field label="Postal code" name="postalCode" value={form.postalCode} onChange={handleChange} error={errors.postalCode} />
-                <Field label="Country" name="country" value={form.country} onChange={handleChange} error={errors.country} />
+                <Field label="Country" name="country" value={form.country} onChange={handleChange} error={errors.country} full />
               </div>
             </section>
 
@@ -220,13 +217,13 @@ export default function CheckoutPage() {
                 name="notes"
                 value={form.notes}
                 onChange={handleChange}
-                rows={3}
-                className="mt-3 w-full rounded-md border border-stone-300 px-3 py-2 text-sm text-stone-900 focus:border-stone-500 focus:outline-none"
+                rows={2}
+                className="mt-2.5 w-full rounded-md border border-stone-300 px-3 py-1.5 text-sm text-stone-900 focus:border-stone-500 focus:outline-none"
                 placeholder="Delivery instructions, preferred contact time, etc."
               />
             </section>
 
-            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-800">
               You&apos;ll be redirected to Paystack to complete payment securely. Your order is
               only placed once payment succeeds.
             </div>
