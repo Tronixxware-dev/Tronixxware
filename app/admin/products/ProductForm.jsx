@@ -3,63 +3,166 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { adminUploadImage } from '../../lib/admin-auth';
-import { useExchangeRate, formatNaira } from '../../lib/useExchangeRate';
+import { formatNaira } from '../../lib/useExchangeRate';
+import { swatchFor } from '../../lib/colorSwatches';
+
+// Same six categories used across the storefront (nav, "Shop by category",
+// and the /products filter bar) — see app/lib/products.js.
+const CATEGORIES = [
+  { value: 'phones', label: 'Phones' },
+  { value: 'laptops', label: 'Laptops' },
+  { value: 'watches', label: 'Watches' },
+  { value: 'headphones', label: 'Headphones' },
+  { value: 'gaming', label: 'Gaming' },
+  { value: 'accessories', label: 'Accessories' },
+  { value: 'powerbanks', label: 'Powerbanks' },
+];
 
 const CONDITIONS = ['New', 'Refurbished', 'Used'];
+const STORAGE_OPTIONS = ['32GB', '64GB', '128GB', '256GB', '512GB', '1TB', '2TB'];
+const CARD_SLOT_OPTIONS = ['Yes', 'No'];
+const OS_OPTIONS = [
+  'Android',
+  'iOS',
+  'Windows 10',
+  'Windows 11',
+  'macOS',
+  'ChromeOS',
+  'Linux',
+  'watchOS',
+  'Wear OS',
+  'Other',
+];
+
+// Which of the extra spec fields make sense for each category — the form
+// only shows the fields that apply, so adding a pair of headphones doesn't
+// ask for a screen size, and adding a watch doesn't ask for a card slot.
+const CATEGORY_FIELDS = {
+  phones: ['storage', 'cardSlot', 'operatingSystem', 'colorOption'],
+  laptops: ['storage', 'inches', 'operatingSystem', 'colorOption'],
+  watches: ['storage', 'operatingSystem', 'colorOption'],
+  headphones: ['colorOption'],
+  gaming: ['storage', 'colorOption'],
+  accessories: ['storage', 'colorOption'],
+  powerbanks: ['colorOption'],
+};
+
+const FIELD_LABELS = {
+  storage: 'Storage',
+  cardSlot: 'Card Slot',
+  inches: 'Inches',
+  operatingSystem: 'Operating System',
+};
+
+// Brand choices per category, ordered roughly popular → less popular for
+// the Nigerian market this store sells into. "Other…" always falls back to
+// a free-text field so an uncommon brand is never blocked.
+const OTHER_BRAND = '__other__';
+const BRANDS_BY_CATEGORY = {
+  phones: ['Apple', 'Samsung', 'Infinix', 'Tecno', 'itel', 'Xiaomi', 'Oppo', 'Vivo', 'OnePlus', 'Google', 'Huawei', 'Nokia', 'Realme', 'Sony'],
+  laptops: ['Apple', 'HP', 'Dell', 'Lenovo', 'Asus', 'Acer', 'Microsoft', 'MSI', 'Samsung', 'LG', 'Razer', 'Toshiba'],
+  watches: ['Apple', 'Samsung', 'Huawei', 'Garmin', 'Amazfit', 'Xiaomi', 'Fitbit', 'Fossil', 'Noise'],
+  headphones: ['Apple', 'Sony', 'Samsung', 'JBL', 'Bose', 'Beats', 'Anker Soundcore', 'Xiaomi', 'Sennheiser', 'Skullcandy'],
+  gaming: ['Sony', 'Microsoft', 'Nintendo', 'Logitech', 'Razer', 'SteelSeries', 'HyperX'],
+  accessories: ['Anker', 'Baseus', 'Belkin', 'Spigen', 'UGREEN', 'Oraimo', 'Samsung', 'Apple', 'Xiaomi'],
+  powerbanks: ['Anker', 'Oraimo', 'Baseus', 'Xiaomi', 'Romoss', 'UGREEN', 'Belkin', 'Samsung'],
+};
+
+function brandsFor(category) {
+  return BRANDS_BY_CATEGORY[category] || [];
+}
+
+// Suggestion list for the Name field — all iPhone series plus popular
+// laptop model names, matched by substring as the admin types.
+const NAME_SUGGESTIONS = [
+  'iPhone 17 Pro Max', 'iPhone 17 Pro', 'iPhone 17', 'iPhone Air',
+  'iPhone 16 Pro Max', 'iPhone 16 Pro', 'iPhone 16 Plus', 'iPhone 16e', 'iPhone 16',
+  'iPhone 15 Pro Max', 'iPhone 15 Pro', 'iPhone 15 Plus', 'iPhone 15',
+  'iPhone 14 Pro Max', 'iPhone 14 Pro', 'iPhone 14 Plus', 'iPhone 14',
+  'iPhone 13 Pro Max', 'iPhone 13 Pro', 'iPhone 13', 'iPhone 13 mini',
+  'iPhone 12 Pro Max', 'iPhone 12 Pro', 'iPhone 12', 'iPhone 12 mini',
+  'iPhone 11 Pro Max', 'iPhone 11 Pro', 'iPhone 11',
+  'iPhone XS Max', 'iPhone XS', 'iPhone XR', 'iPhone X',
+  'iPhone SE (3rd generation)', 'iPhone SE (2nd generation)', 'iPhone SE',
+  'iPhone 8 Plus', 'iPhone 8',
+  'iPhone 7 Plus', 'iPhone 7',
+  'iPhone 6s Plus', 'iPhone 6s',
+  'iPhone 6 Plus', 'iPhone 6',
+  'MacBook Air M3', 'MacBook Air M2', 'MacBook Air',
+  'MacBook Pro 14"', 'MacBook Pro 16"', 'MacBook Pro 13"', 'MacBook',
+  'Dell XPS 13', 'Dell XPS 15', 'Dell Inspiron', 'Dell Latitude', 'Dell Vostro',
+  'HP Pavilion', 'HP Spectre x360', 'HP EliteBook', 'HP Envy', 'HP ProBook',
+  'Lenovo ThinkPad X1 Carbon', 'Lenovo ThinkPad', 'Lenovo IdeaPad', 'Lenovo Legion', 'Lenovo Yoga',
+  'Asus ZenBook', 'Asus VivoBook', 'Asus ROG Strix', 'Asus TUF Gaming',
+  'Acer Aspire', 'Acer Swift', 'Acer Predator', 'Acer Nitro',
+  'Microsoft Surface Laptop', 'Microsoft Surface Pro',
+  'MSI GF63', 'MSI Modern', 'MSI Stealth',
+  'Razer Blade',
+  'Samsung Galaxy Book',
+  'Toshiba Satellite',
+];
 
 function productToFormState(product) {
+  const category = product?.category || 'phones';
+  const rawBrand = product?.brand || '';
+  const knownBrand = rawBrand && brandsFor(category).includes(rawBrand);
+
   return {
     name: product?.name || '',
-    brand: product?.brand || '',
+    brand: rawBrand ? (knownBrand ? rawBrand : OTHER_BRAND) : '',
+    brandCustom: rawBrand && !knownBrand ? rawBrand : '',
     image: product?.image || '',
     gallery: product?.gallery?.length ? [...product.gallery] : [],
     price: product?.price != null ? String(product.price) : '',
-    compareAtPrice: product?.compareAtPrice != null ? String(product.compareAtPrice) : '',
     unitStock: product?.unitStock != null ? String(product.unitStock) : '0',
-    condition: product?.condition || 'New',
-    description: product?.description || '',
     rating: product?.rating != null ? String(product.rating) : '',
     reviews: product?.reviews != null ? String(product.reviews) : '',
-    specs: product?.specs?.length ? [...product.specs] : [''],
-    colors: product?.colors?.length ? product.colors.map((c) => ({ ...c })) : [],
-    bulkEnabled: !!product?.bulk,
-    bulkMinQty: product?.bulk?.minQty != null ? String(product.bulk.minQty) : '',
-    bulkPricePerUnit: product?.bulk?.pricePerUnit != null ? String(product.bulk.pricePerUnit) : '',
+    category,
+    condition: product?.condition || 'New',
+    storage: product?.storage || '',
+    cardSlot: product?.cardSlot || '',
+    inches: product?.inches || '',
+    operatingSystem: product?.operatingSystem || '',
+    colors: product?.colorOption
+      ? product.colorOption.split(',').map((c) => c.trim()).filter(Boolean)
+      : [],
+    colorInput: '',
   };
 }
 
 function formStateToPayload(form) {
+  const visibleFields = CATEGORY_FIELDS[form.category] || [];
+
   const payload = {
     name: form.name.trim(),
-    brand: form.brand.trim(),
+    brand: (form.brand === OTHER_BRAND ? form.brandCustom : form.brand).trim(),
     image: form.image.trim(),
     gallery: form.gallery,
     price: Number(form.price),
     unitStock: Number(form.unitStock),
+    rating: form.rating.trim() !== '' ? Number(form.rating) : 0,
+    reviews: form.reviews.trim() !== '' ? Number(form.reviews) : 0,
+    category: form.category,
     condition: form.condition,
-    description: form.description.trim(),
-    specs: form.specs.map((s) => s.trim()).filter(Boolean),
-    colors: form.colors
-      .filter((c) => c.name.trim())
-      .map((c) => ({ name: c.name.trim(), hex: c.hex })),
   };
 
-  payload.compareAtPrice = form.compareAtPrice.trim() ? Number(form.compareAtPrice) : null;
+  ['storage', 'cardSlot', 'inches', 'operatingSystem'].forEach((key) => {
+    payload[key] = visibleFields.includes(key) ? form[key].trim() : '';
+  });
 
-  if (form.rating.trim()) payload.rating = Number(form.rating);
-  if (form.reviews.trim()) payload.reviews = Number(form.reviews);
-
-  payload.bulk =
-    form.bulkEnabled && form.bulkMinQty.trim() && form.bulkPricePerUnit.trim()
-      ? { minQty: Number(form.bulkMinQty), pricePerUnit: Number(form.bulkPricePerUnit) }
-      : null;
+  payload.colorOption = visibleFields.includes('colorOption') ? form.colors.join(', ') : '';
 
   return payload;
 }
 
+const inputClass =
+  'mt-1.5 w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm text-stone-900 shadow-sm transition focus:border-stone-900 focus:outline-none focus:ring-4 focus:ring-stone-900/5';
+const labelClass = 'block text-sm font-medium text-stone-700';
+const sectionClass = 'space-y-5 border-t border-stone-100 pt-7 first:border-t-0 first:pt-0';
+const sectionTitleClass = 'text-xs font-semibold uppercase tracking-widest text-stone-400';
+
 export default function ProductForm({ product, onSubmit, submitLabel = 'Save product' }) {
   const router = useRouter();
-  const rate = useExchangeRate();
   const [form, setForm] = useState(() => productToFormState(product));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -69,6 +172,7 @@ export default function ProductForm({ product, onSubmit, submitLabel = 'Save pro
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
   const [galleryError, setGalleryError] = useState('');
+  const [nameFocused, setNameFocused] = useState(false);
 
   // The edit page fetches the product asynchronously, so it may still be
   // loading (or a cold-starting Render backend may take a while) when this
@@ -86,6 +190,27 @@ export default function ProductForm({ product, onSubmit, submitLabel = 'Save pro
 
   function update(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function addColorChip() {
+    const name = form.colorInput.trim();
+    if (!name) return;
+    setForm((prev) =>
+      prev.colors.includes(name)
+        ? { ...prev, colorInput: '' }
+        : { ...prev, colors: [...prev.colors, name], colorInput: '' }
+    );
+  }
+
+  function removeColorChip(name) {
+    setForm((prev) => ({ ...prev, colors: prev.colors.filter((c) => c !== name) }));
+  }
+
+  function handleColorKeyDown(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addColorChip();
+    }
   }
 
   async function handleImageSelect(e) {
@@ -133,38 +258,6 @@ export default function ProductForm({ product, onSubmit, submitLabel = 'Save pro
     setForm((prev) => ({ ...prev, gallery: prev.gallery.filter((_, i) => i !== idx) }));
   }
 
-  function updateSpec(idx, value) {
-    setForm((prev) => {
-      const specs = [...prev.specs];
-      specs[idx] = value;
-      return { ...prev, specs };
-    });
-  }
-
-  function addSpec() {
-    setForm((prev) => ({ ...prev, specs: [...prev.specs, ''] }));
-  }
-
-  function removeSpec(idx) {
-    setForm((prev) => ({ ...prev, specs: prev.specs.filter((_, i) => i !== idx) }));
-  }
-
-  function updateColor(idx, field, value) {
-    setForm((prev) => {
-      const colors = [...prev.colors];
-      colors[idx] = { ...colors[idx], [field]: value };
-      return { ...prev, colors };
-    });
-  }
-
-  function addColor() {
-    setForm((prev) => ({ ...prev, colors: [...prev.colors, { name: '', hex: '#000000' }] }));
-  }
-
-  function removeColor(idx) {
-    setForm((prev) => ({ ...prev, colors: prev.colors.filter((_, i) => i !== idx) }));
-  }
-
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
@@ -174,8 +267,8 @@ export default function ProductForm({ product, onSubmit, submitLabel = 'Save pro
       return;
     }
 
-    if (form.bulkEnabled && form.bulkMinQty.trim() && Number(form.bulkMinQty) < 2) {
-      setError('Bulk minimum quantity must be at least 2.');
+    if (form.brand === OTHER_BRAND && !form.brandCustom.trim()) {
+      setError('Enter the brand name.');
       return;
     }
 
@@ -190,331 +283,408 @@ export default function ProductForm({ product, onSubmit, submitLabel = 'Save pro
   }
 
   const priceNum = Number(form.price);
-  const compareNum = Number(form.compareAtPrice);
+  const visibleFields = CATEGORY_FIELDS[form.category] || [];
+  const specFields = visibleFields.filter((f) => f !== 'colorOption');
+
+  const nameQuery = form.name.trim().toLowerCase();
+  const nameSuggestions = nameQuery
+    ? NAME_SUGGESTIONS.filter((n) => n.toLowerCase().includes(nameQuery)).slice(0, 8)
+    : [];
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-2xl space-y-8">
+    <form
+      onSubmit={handleSubmit}
+      className="mx-auto max-w-2xl space-y-8 rounded-3xl border border-stone-200 bg-white p-6 shadow-sm sm:p-10"
+    >
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      <div>
-        <label className="block text-sm font-medium text-stone-700">Product image (cover)</label>
-        <div className="mt-2 flex items-center gap-4">
-          <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-md border border-stone-200 bg-stone-50">
-            {(localPreview || form.image) && !imageLoadFailed ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={localPreview || form.image}
-                alt="Product preview"
-                className="h-full w-full object-cover"
-                onError={() => setImageLoadFailed(true)}
-                onLoad={() => setImageLoadFailed(false)}
-              />
-            ) : (
-              <span className="px-1 text-center font-mono text-[10px] text-stone-400">
-                {imageLoadFailed ? 'Image failed to load' : 'No image'}
-              </span>
-            )}
-          </div>
-          <div className="flex-1">
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/avif"
-              onChange={handleImageSelect}
-              disabled={uploading}
-              className="block w-full text-sm text-stone-600 file:mr-3 file:rounded-md file:border-0 file:bg-stone-900 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-stone-700"
-            />
-            {uploading && <p className="mt-1 font-mono text-xs text-stone-400">Uploading…</p>}
-            {uploadError && <p className="mt-1 text-xs text-red-600">{uploadError}</p>}
-            {form.image && !uploading && (
-              <p className="mt-1 truncate font-mono text-[11px] text-emerald-700">{form.image}</p>
-            )}
-          </div>
-        </div>
-      </div>
+      <div className={sectionClass}>
+        <p className={sectionTitleClass}>Photos</p>
 
-      <div>
-        <label className="block text-sm font-medium text-stone-700">Gallery (additional photos)</label>
-        <div className="mt-2 flex flex-wrap gap-3">
-          {form.gallery.map((url, idx) => (
-            <div
-              key={idx}
-              className="relative h-20 w-20 shrink-0 overflow-hidden rounded-md border border-stone-200 bg-stone-50"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={url}
-                alt={`Gallery ${idx + 1}`}
-                className="h-full w-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => removeGalleryImage(idx)}
-                className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-stone-900 text-[10px] text-white hover:bg-red-600"
-                aria-label="Remove gallery image"
-              >
-                ×
-              </button>
+        <div>
+          <label className={labelClass}>Product image (cover)</label>
+          <div className="mt-2 flex items-center gap-4">
+            <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-stone-200 bg-stone-50">
+              {(localPreview || form.image) && !imageLoadFailed ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={localPreview || form.image}
+                  alt="Product preview"
+                  className="h-full w-full object-cover"
+                  onError={() => setImageLoadFailed(true)}
+                  onLoad={() => setImageLoadFailed(false)}
+                />
+              ) : (
+                <span className="px-1 text-center font-mono text-[10px] text-stone-400">
+                  {imageLoadFailed ? 'Image failed to load' : 'No image'}
+                </span>
+              )}
             </div>
-          ))}
-          <label className="flex h-20 w-20 shrink-0 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-stone-300 text-center text-[10px] text-stone-400 hover:border-stone-400 hover:text-stone-600">
-            + Add
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/avif"
-              multiple
-              onChange={handleGallerySelect}
-              disabled={galleryUploading}
-              className="hidden"
-            />
-          </label>
-        </div>
-        {galleryUploading && <p className="mt-1 font-mono text-xs text-stone-400">Uploading…</p>}
-        {galleryError && <p className="mt-1 text-xs text-red-600">{galleryError}</p>}
-      </div>
+            <div className="flex-1">
+              <label
+                className={`inline-flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-xs font-medium text-white transition ${
+                  uploading ? 'bg-stone-400' : 'bg-stone-900 hover:bg-stone-700'
+                }`}
+              >
+                {uploading ? 'Uploading…' : 'Choose file'}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/avif"
+                  onChange={handleImageSelect}
+                  disabled={uploading}
+                  className="hidden"
+                />
+              </label>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-stone-700">Name</label>
-          <input
-            type="text"
-            required
-            value={form.name}
-            onChange={(e) => update('name', e.target.value)}
-            className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
-          />
+              <p className="mt-2 text-xs">
+                {uploading ? (
+                  <span className="font-mono text-stone-400">Uploading…</span>
+                ) : uploadError ? (
+                  <span className="text-red-600">{uploadError}</span>
+                ) : form.image ? (
+                  <span className="inline-flex items-center gap-1 font-medium text-emerald-700">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                    Photo uploaded
+                  </span>
+                ) : (
+                  <span className="text-stone-400">No photo selected yet</span>
+                )}
+              </p>
+            </div>
+          </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-stone-700">Brand</label>
-          <input
-            type="text"
-            required
-            value={form.brand}
-            onChange={(e) => update('brand', e.target.value)}
-            className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
-          />
-        </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-stone-700">Price (USD)</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            required
-            value={form.price}
-            onChange={(e) => update('price', e.target.value)}
-            className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
-          />
-          {Number.isFinite(priceNum) && form.price.trim() !== '' && (
-            <p className="mt-1 font-mono text-xs text-stone-400">{formatNaira(priceNum, rate)}</p>
-          )}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-stone-700">Compare-at price (USD)</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={form.compareAtPrice}
-            onChange={(e) => update('compareAtPrice', e.target.value)}
-            className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
-          />
-          {Number.isFinite(compareNum) && form.compareAtPrice.trim() !== '' && (
-            <p className="mt-1 font-mono text-xs text-stone-400">{formatNaira(compareNum, rate)}</p>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-stone-700">Stock (units)</label>
-          <input
-            type="number"
-            step="1"
-            min="0"
-            required
-            value={form.unitStock}
-            onChange={(e) => update('unitStock', e.target.value)}
-            className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-stone-700">Condition</label>
-          <select
-            value={form.condition}
-            onChange={(e) => update('condition', e.target.value)}
-            className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
-          >
-            {CONDITIONS.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
+          <label className={labelClass}>Gallery (additional photos)</label>
+          <div className="mt-2 flex flex-wrap gap-3">
+            {form.gallery.map((url, idx) => (
+              <div
+                key={idx}
+                className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-50"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt={`Gallery ${idx + 1}`}
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeGalleryImage(idx)}
+                  className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-stone-900 text-[10px] text-white hover:bg-red-600"
+                  aria-label="Remove gallery image"
+                >
+                  ×
+                </button>
+              </div>
             ))}
-          </select>
+            <label className="flex h-20 w-20 shrink-0 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-stone-300 text-center text-[10px] text-stone-400 hover:border-stone-400 hover:text-stone-600">
+              + Add
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/avif"
+                multiple
+                onChange={handleGallerySelect}
+                disabled={galleryUploading}
+                className="hidden"
+              />
+            </label>
+          </div>
+          {galleryUploading && <p className="mt-1 font-mono text-xs text-stone-400">Uploading…</p>}
+          {galleryError && <p className="mt-1 text-xs text-red-600">{galleryError}</p>}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-stone-700">Rating (optional)</label>
-          <input
-            type="number"
-            step="0.1"
-            min="0"
-            max="5"
-            value={form.rating}
-            onChange={(e) => update('rating', e.target.value)}
-            className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-stone-700">Review count (optional)</label>
-          <input
-            type="number"
-            step="1"
-            min="0"
-            value={form.reviews}
-            onChange={(e) => update('reviews', e.target.value)}
-            className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
-          />
-        </div>
-      </div>
+      <div className={sectionClass}>
+        <p className={sectionTitleClass}>Basic details</p>
 
-      <div>
-        <label className="block text-sm font-medium text-stone-700">Description</label>
-        <textarea
-          rows={4}
-          value={form.description}
-          onChange={(e) => update('description', e.target.value)}
-          className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
-        />
-      </div>
-
-      <div>
-        <div className="flex items-center justify-between">
-          <label className="block text-sm font-medium text-stone-700">Specs</label>
-          <button type="button" onClick={addSpec} className="text-xs font-medium text-stone-600 hover:text-stone-900">
-            + Add spec
-          </button>
-        </div>
-        <div className="mt-2 space-y-2">
-          {form.specs.map((spec, idx) => (
-            <div key={idx} className="flex gap-2">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div className="relative">
+            <label className={labelClass}>Name</label>
+            <input
+              type="text"
+              required
+              autoComplete="off"
+              value={form.name}
+              onChange={(e) => update('name', e.target.value)}
+              onFocus={() => setNameFocused(true)}
+              onBlur={() => setTimeout(() => setNameFocused(false), 150)}
+              placeholder="e.g. iPhone 15 Pro Max"
+              className={inputClass}
+            />
+            {nameFocused && nameSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-10 mt-1.5 max-h-56 overflow-y-auto rounded-xl border border-stone-200 bg-white py-1 shadow-lg">
+                {nameSuggestions.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onMouseDown={() => {
+                      update('name', s);
+                      setNameFocused(false);
+                    }}
+                    className="block w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <label className={labelClass}>Brand</label>
+            <select
+              required
+              value={form.brand}
+              onChange={(e) => update('brand', e.target.value)}
+              className={inputClass}
+            >
+              <option value="" disabled>
+                Select brand
+              </option>
+              {brandsFor(form.category).map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+              <option value={OTHER_BRAND}>Other…</option>
+            </select>
+            {form.brand === OTHER_BRAND && (
               <input
                 type="text"
-                value={spec}
-                onChange={(e) => updateSpec(idx, e.target.value)}
-                placeholder="e.g. 256GB storage"
-                className="flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
+                required
+                value={form.brandCustom}
+                onChange={(e) => update('brandCustom', e.target.value)}
+                placeholder="Type the brand name"
+                className={inputClass}
               />
-              <button
-                type="button"
-                onClick={() => removeSpec(idx)}
-                className="rounded-md border border-stone-200 px-2 text-xs text-stone-400 hover:border-red-200 hover:text-red-600"
-              >
-                Remove
-              </button>
-            </div>
-          ))}
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label className={labelClass}>Category</label>
+            <select
+              value={form.category}
+              onChange={(e) => update('category', e.target.value)}
+              className={inputClass}
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Condition</label>
+            <select
+              value={form.condition}
+              onChange={(e) => update('condition', e.target.value)}
+              className={inputClass}
+            >
+              {CONDITIONS.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
-      <div>
-        <div className="flex items-center justify-between">
-          <label className="block text-sm font-medium text-stone-700">Colors</label>
-          <button type="button" onClick={addColor} className="text-xs font-medium text-stone-600 hover:text-stone-900">
-            + Add color
-          </button>
+      <div className={sectionClass}>
+        <p className={sectionTitleClass}>Pricing &amp; inventory</p>
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label className={labelClass}>Price (₦)</label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              required
+              value={form.price}
+              onChange={(e) => update('price', e.target.value)}
+              className={inputClass}
+            />
+            {Number.isFinite(priceNum) && form.price.trim() !== '' && (
+              <p className="mt-1.5 font-mono text-xs text-stone-400">{formatNaira(priceNum)}</p>
+            )}
+          </div>
+          <div>
+            <label className={labelClass}>Stock (units)</label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              required
+              value={form.unitStock}
+              onChange={(e) => update('unitStock', e.target.value)}
+              className={inputClass}
+            />
+          </div>
         </div>
-        <div className="mt-2 space-y-2">
-          {form.colors.map((color, idx) => (
-            <div key={idx} className="flex items-center gap-2">
-              <input
-                type="color"
-                value={color.hex || '#000000'}
-                onChange={(e) => updateColor(idx, 'hex', e.target.value)}
-                className="h-9 w-9 rounded-md border border-stone-300"
-              />
-              <input
-                type="text"
-                value={color.name}
-                onChange={(e) => updateColor(idx, 'name', e.target.value)}
-                placeholder="Color name, e.g. Midnight"
-                className="flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={() => removeColor(idx)}
-                className="rounded-md border border-stone-200 px-2 py-2 text-xs text-stone-400 hover:border-red-200 hover:text-red-600"
-              >
-                Remove
-              </button>
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label className={labelClass}>Rating (0–5)</label>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              max="5"
+              placeholder="e.g. 4.5"
+              value={form.rating}
+              onChange={(e) => update('rating', e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Review count</label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              placeholder="e.g. 128"
+              value={form.reviews}
+              onChange={(e) => update('reviews', e.target.value)}
+              className={inputClass}
+            />
+          </div>
+        </div>
+      </div>
+
+      {visibleFields.length > 0 && (
+        <div className={sectionClass}>
+          <p className={sectionTitleClass}>Specifications</p>
+
+          {specFields.length > 0 && (
+            <div className="grid gap-5 sm:grid-cols-2">
+              {specFields.map((key) => (
+                <div key={key}>
+                  <label className={labelClass}>{FIELD_LABELS[key]}</label>
+                  {key === 'storage' && (
+                    <select value={form.storage} onChange={(e) => update('storage', e.target.value)} className={inputClass}>
+                      <option value="">Select storage</option>
+                      {STORAGE_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {key === 'cardSlot' && (
+                    <select value={form.cardSlot} onChange={(e) => update('cardSlot', e.target.value)} className={inputClass}>
+                      <option value="">Select</option>
+                      {CARD_SLOT_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {key === 'operatingSystem' && (
+                    <select
+                      value={form.operatingSystem}
+                      onChange={(e) => update('operatingSystem', e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">Select OS</option>
+                      {OS_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {key === 'inches' && (
+                    <input
+                      type="text"
+                      value={form.inches}
+                      onChange={(e) => update('inches', e.target.value)}
+                      placeholder='e.g. 15.6"'
+                      className={inputClass}
+                    />
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
-          {form.colors.length === 0 && (
-            <p className="font-mono text-xs text-stone-400">No color variants added.</p>
+          )}
+
+          {visibleFields.includes('colorOption') && (
+            <div>
+              <label className={labelClass}>Color Option</label>
+              <div className="mt-1.5 flex gap-2">
+                <input
+                  type="text"
+                  value={form.colorInput}
+                  onChange={(e) => update('colorInput', e.target.value)}
+                  onKeyDown={handleColorKeyDown}
+                  placeholder="Type a color, e.g. Space Grey, then press Enter"
+                  className={inputClass + ' mt-0'}
+                />
+                <button
+                  type="button"
+                  onClick={addColorChip}
+                  className="shrink-0 rounded-xl border border-stone-200 bg-stone-50 px-4 py-2.5 text-sm font-medium text-stone-700 transition hover:bg-stone-100"
+                >
+                  Add
+                </button>
+              </div>
+
+              {form.colors.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {form.colors.map((c) => (
+                    <span
+                      key={c}
+                      className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white py-1.5 pl-1.5 pr-3 text-xs font-medium text-stone-700 shadow-sm"
+                    >
+                      <span
+                        className="h-5 w-5 rounded-full border border-stone-300"
+                        style={{ backgroundColor: swatchFor(c) }}
+                      />
+                      {c}
+                      <button
+                        type="button"
+                        onClick={() => removeColorChip(c)}
+                        aria-label={`Remove ${c}`}
+                        className="ml-0.5 text-stone-400 hover:text-red-600"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 font-mono text-xs text-stone-400">No color options added yet.</p>
+              )}
+            </div>
           )}
         </div>
-      </div>
+      )}
 
-      <div>
-        <label className="flex items-center gap-2 text-sm font-medium text-stone-700">
-          <input
-            type="checkbox"
-            checked={form.bulkEnabled}
-            onChange={(e) => update('bulkEnabled', e.target.checked)}
-          />
-          Enable bulk pricing
-        </label>
-        {form.bulkEnabled && (
-          <div className="mt-2 grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-stone-500">Minimum quantity (2+)</label>
-              <input
-                type="number"
-                step="1"
-                min="2"
-                value={form.bulkMinQty}
-                onChange={(e) => update('bulkMinQty', e.target.value)}
-                className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-stone-500">Price per unit (USD)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.bulkPricePerUnit}
-                onChange={(e) => update('bulkPricePerUnit', e.target.value)}
-                className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none"
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="flex items-center gap-3 border-t border-stone-100 pt-6">
+      <div className="flex items-center gap-4 border-t border-stone-100 pt-7">
         <button
           type="submit"
           disabled={saving || uploading || galleryUploading}
-          className="rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50"
+          className="rounded-xl bg-stone-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-stone-800 active:scale-[0.98] disabled:opacity-50"
         >
           {saving ? 'Saving…' : submitLabel}
         </button>
         <button
           type="button"
           onClick={() => router.push('/admin/products')}
-          className="text-sm text-stone-500 hover:text-stone-900"
+          className="text-sm font-medium text-stone-500 hover:text-stone-900"
         >
           Cancel
         </button>

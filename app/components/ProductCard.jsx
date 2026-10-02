@@ -4,21 +4,27 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCart } from '../lib/cart-context';
-import { useExchangeRate, formatNaira } from '../lib/useExchangeRate';
+import { formatNaira } from '../lib/useExchangeRate';
+import { parseColors, swatchFor } from '../lib/colorSwatches';
 
 export default function ProductCard({ product }) {
   const { addItem } = useCart();
-  const rate = useExchangeRate();
-  const [selectedColor, setSelectedColor] = useState(product.colors?.[0]);
   const [wishlisted, setWishlisted] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
 
-  const discount = product.compareAtPrice
-    ? Math.round(100 - (product.price / product.compareAtPrice) * 100)
-    : null;
+  // Only the spec chips that actually apply to this product show up — a
+  // pair of earbuds just won't have "Inches" or "Operating System" set.
+  const specChips = [
+    product.storage,
+    product.cardSlot,
+    product.inches,
+    product.operatingSystem,
+  ].filter(Boolean);
+
+  const colors = parseColors(product.colorOption);
 
   function handleAddToCart() {
-    addItem(product, 1, selectedColor);
+    addItem(product, 1);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1500);
   }
@@ -36,11 +42,6 @@ export default function ProductCard({ product }) {
           />
 
           <div className="absolute left-3 top-3 flex flex-col gap-2">
-            {discount && (
-              <span className="rounded-full bg-red-600 px-2.5 py-1 font-mono text-xs font-semibold text-white">
-                -{discount}%
-              </span>
-            )}
             <span className="rounded-full border border-stone-200 bg-white/90 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-stone-600 backdrop-blur">
               {product.condition}
             </span>
@@ -70,59 +71,45 @@ export default function ProductCard({ product }) {
             {product.name}
           </h3>
 
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {product.specs.map((s) => (
-              <span key={s} className="rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 font-mono text-[10px] text-stone-500">
-                {s}
-              </span>
-            ))}
-          </div>
+          {product.rating > 0 && (
+            <div className="mt-1 flex items-center gap-1 text-xs text-stone-500">
+              <span className="text-amber-500">★</span>
+              <span className="mono-tag font-mono">{product.rating}</span>
+              {product.reviews > 0 && <span>({product.reviews})</span>}
+            </div>
+          )}
 
-          <div className="mt-2 flex items-center gap-1 text-xs text-stone-500">
-            <span className="text-amber-500">★</span>
-            <span className="mono-tag font-mono">{product.rating}</span>
-            <span>({product.reviews})</span>
-          </div>
+          {specChips.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {specChips.map((s) => (
+                <span key={s} className="rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 font-mono text-[10px] text-stone-500">
+                  {s}
+                </span>
+              ))}
+            </div>
+          )}
 
-          {product.colors && (
-            <div className="mt-3 flex items-center gap-1.5">
-              {product.colors.map((c) => (
-                <button
-                  key={c.name}
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setSelectedColor(c);
-                  }}
-                  aria-label={c.name}
-                  className={`h-4 w-4 rounded-full border transition-all ${
-                    selectedColor?.name === c.name
-                      ? 'border-stone-900 ring-1 ring-stone-900 ring-offset-1 ring-offset-white'
-                      : 'border-stone-300'
-                  }`}
-                  style={{ backgroundColor: c.hex }}
+          {colors.length > 0 && (
+            <div className="mt-2 flex items-center gap-1.5">
+              {colors.slice(0, 6).map((c) => (
+                <span
+                  key={c}
+                  title={c}
+                  className="h-4 w-4 shrink-0 rounded-full border border-stone-200"
+                  style={{ backgroundColor: swatchFor(c) }}
                 />
               ))}
+              {colors.length > 6 && (
+                <span className="font-mono text-[10px] text-stone-400">+{colors.length - 6}</span>
+              )}
             </div>
           )}
 
           <div className="mt-3 flex items-baseline gap-2">
             <span className="mono-tag font-mono text-lg font-semibold text-stone-900">
-              {formatNaira(product.price, rate)}
+              {formatNaira(product.price)}
             </span>
-            {product.compareAtPrice && (
-              <span className="mono-tag font-mono text-xs text-stone-400 line-through">
-                {formatNaira(product.compareAtPrice, rate)}
-              </span>
-            )}
           </div>
-
-          {product.bulk && (
-            <p className="mt-1 font-mono text-[11px] font-medium text-emerald-700">
-              Bulk: {formatNaira(product.bulk.pricePerUnit, rate)}/unit for {product.bulk.minQty}+
-            </p>
-          )}
         </div>
       </Link>
 

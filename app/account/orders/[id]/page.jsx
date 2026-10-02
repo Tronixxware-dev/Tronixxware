@@ -107,7 +107,7 @@ export default function OrderDetailPage() {
                 </p>
               </div>
               <p className="mono-tag flex-shrink-0 font-mono text-sm text-stone-900">
-                ${item.lineTotal.toLocaleString()}
+                {formatNgn(item.lineTotal)}
               </p>
             </div>
           ))}

@@ -112,7 +112,7 @@ export default function OrderHistoryPage() {
                     </p>
                   </div>
                   <p className="mono-tag flex-shrink-0 font-mono text-lg font-semibold text-stone-900">
-                    {formatNgn(order.amountPaidNgn) || `$${order.subtotal.toLocaleString()}`}
+                    {formatNgn(order.amountPaidNgn ?? order.subtotal)}
                   </p>
                 </div>
               </Link>

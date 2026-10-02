@@ -33,9 +33,9 @@ export function CartProvider({ children }) {
     }
   }, [items, hydrated]);
 
-  function addItem(product, quantity, color) {
+  function addItem(product, quantity) {
     setItems((prev) => {
-      const lineId = `${product.id}::${color?.name || 'default'}`;
+      const lineId = `${product.id}::${product.colorOption || 'default'}`;
       const existing = prev.find((line) => line.lineId === lineId);
       const maxStock = product.unitStock;
 
@@ -56,10 +56,7 @@ export function CartProvider({ children }) {
           brand: product.brand,
           image: product.image,
           price: product.price,
-          compareAtPrice: product.compareAtPrice,
-          bulk: product.bulk,
-          colorName: color?.name || null,
-          colorHex: color?.hex || null,
+          colorName: product.colorOption || null,
           maxStock,
           quantity: Math.min(maxStock, quantity),
         },
@@ -87,11 +84,7 @@ export function CartProvider({ children }) {
 
   const itemCount = items.reduce((sum, line) => sum + line.quantity, 0);
 
-  const subtotal = items.reduce((sum, line) => {
-    const unit =
-      line.bulk && line.quantity >= line.bulk.minQty ? line.bulk.pricePerUnit : line.price;
-    return sum + unit * line.quantity;
-  }, 0);
+  const subtotal = items.reduce((sum, line) => sum + line.price * line.quantity, 0);
 
   return (
     <CartContext.Provider

@@ -8,7 +8,6 @@ import CategoryFilterBar from './CategoryFilterBar';
 export default function ShopClient({ products, categories }) {
   const [activeCategory, setActiveCategory] = useState('all');
   const [sort, setSort] = useState('featured');
-  const [bulkOnly, setBulkOnly] = useState(false);
 
   const searchParams = useSearchParams();
   const urlCategory = searchParams.get('category');
@@ -27,9 +26,6 @@ export default function ShopClient({ products, categories }) {
     if (activeCategory !== 'all') {
       list = list.filter((p) => p.category === activeCategory);
     }
-    if (bulkOnly) {
-      list = list.filter((p) => Boolean(p.bulk));
-    }
     switch (sort) {
       case 'price-asc':
         list.sort((a, b) => a.price - b.price);
@@ -38,13 +34,13 @@ export default function ShopClient({ products, categories }) {
         list.sort((a, b) => b.price - a.price);
         break;
       case 'rating':
-        list.sort((a, b) => b.rating - a.rating);
+        list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
         break;
       default:
         break;
     }
     return list;
-  }, [products, activeCategory, sort, bulkOnly]);
+  }, [products, activeCategory, sort]);
 
   return (
     <div>
@@ -54,8 +50,6 @@ export default function ShopClient({ products, categories }) {
         onCategoryChange={setActiveCategory}
         sort={sort}
         onSortChange={setSort}
-        bulkOnly={bulkOnly}
-        onBulkOnlyChange={setBulkOnly}
       />
 
       <div className="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-3 sm:gap-8 lg:grid-cols-4">

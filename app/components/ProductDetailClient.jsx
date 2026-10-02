@@ -3,28 +3,32 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { useCart } from '../lib/cart-context';
-import { useExchangeRate, formatNaira } from '../lib/useExchangeRate';
+import { formatNaira } from '../lib/useExchangeRate';
+import { parseColors, swatchFor } from '../lib/colorSwatches';
 
 export default function ProductDetailClient({ product }) {
   const { addItem } = useCart();
-  const rate = useExchangeRate();
-  const [selectedColor, setSelectedColor] = useState(product.colors?.[0]);
   const [quantity, setQuantity] = useState(1);
   const [justAdded, setJustAdded] = useState(false);
 
   const images = [product.image, ...(product.gallery || [])].filter(Boolean);
   const [selectedImage, setSelectedImage] = useState(product.image);
 
-  const discount = product.compareAtPrice
-    ? Math.round(100 - (product.price / product.compareAtPrice) * 100)
-    : null;
+  const colors = parseColors(product.colorOption);
+  const [selectedColor, setSelectedColor] = useState(colors[0] || '');
 
-  const isBulkQty = Boolean(product.bulk) && quantity >= product.bulk.minQty;
-  const unitPrice = isBulkQty ? product.bulk.pricePerUnit : product.price;
-  const lineTotal = unitPrice * quantity;
+  // Only the spec chips that actually apply to this product show up.
+  const specChips = [
+    product.storage,
+    product.cardSlot,
+    product.inches,
+    product.operatingSystem,
+  ].filter(Boolean);
+
+  const lineTotal = product.price * quantity;
 
   function handleAddToCart() {
-    addItem(product, quantity, selectedColor);
+    addItem(product, quantity);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1500);
   }
@@ -41,11 +45,6 @@ export default function ProductDetailClient({ product }) {
             sizes="(min-width: 1024px) 50vw, 100vw"
             priority
           />
-          {discount && (
-            <span className="absolute left-4 top-4 rounded-full bg-red-600 px-3 py-1 font-mono text-xs font-semibold text-white">
-              -{discount}%
-            </span>
-          )}
         </div>
 
         {images.length > 1 && (
@@ -82,48 +81,56 @@ export default function ProductDetailClient({ product }) {
         </h1>
 
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-stone-500">
-          <span className="text-amber-500">★</span>
-          <span className="mono-tag font-mono">{product.rating}</span>
-          <span>({product.reviews} reviews)</span>
-          <span className="text-stone-300">|</span>
+          {product.rating > 0 && (
+            <>
+              <span className="inline-flex items-center gap-1">
+                <span className="text-amber-500">★</span>
+                <span className="mono-tag font-mono text-stone-900">{product.rating}</span>
+                {product.reviews > 0 && <span className="text-stone-400">({product.reviews} reviews)</span>}
+              </span>
+              <span className="text-stone-300">·</span>
+            </>
+          )}
           <span className="font-mono text-xs uppercase tracking-wide text-stone-500">
             {product.condition}
           </span>
         </div>
 
-        <div className="mt-5 flex flex-wrap gap-1.5">
-          {product.specs.map((s) => (
-            <span key={s} className="rounded border border-stone-200 bg-stone-50 px-2 py-1 font-mono text-xs text-stone-600">
-              {s}
-            </span>
-          ))}
-        </div>
-
-        {product.description && (
-          <p className="mt-5 text-sm leading-relaxed text-stone-600">
-            {product.description}
-          </p>
+        {specChips.length > 0 && (
+          <div className="mt-5 flex flex-wrap gap-1.5">
+            {specChips.map((s) => (
+              <span key={s} className="rounded border border-stone-200 bg-stone-50 px-2 py-1 font-mono text-xs text-stone-600">
+                {s}
+              </span>
+            ))}
+          </div>
         )}
 
-        {product.colors && (
-          <div className="mt-6">
-            <p className="text-xs font-medium uppercase tracking-widest text-stone-500">
-              Color — <span className="text-stone-900">{selectedColor?.name}</span>
+        {colors.length > 0 && (
+          <div className="mt-5">
+            <p className="text-sm text-stone-600">
+              Color — <span className="font-medium text-stone-900">{selectedColor}</span>
             </p>
-            <div className="mt-2 flex items-center gap-2">
-              {product.colors.map((c) => (
+            <div className="mt-2.5 flex flex-wrap gap-2.5">
+              {colors.map((c) => (
                 <button
-                  key={c.name}
+                  key={c}
                   type="button"
                   onClick={() => setSelectedColor(c)}
-                  aria-label={c.name}
-                  className={`h-7 w-7 rounded-full border-2 transition-all ${
-                    selectedColor?.name === c.name
-                      ? 'border-stone-900'
-                      : 'border-transparent ring-1 ring-stone-300'
+                  title={c}
+                  aria-label={c}
+                  aria-pressed={selectedColor === c}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full border transition ${
+                    selectedColor === c
+                      ? 'border-stone-900 ring-2 ring-stone-900 ring-offset-2'
+                      : 'border-stone-200 hover:border-stone-400'
                   }`}
-                  style={{ backgroundColor: c.hex }}
-                />
+                >
+                  <span
+                    className="h-6 w-6 rounded-full border border-black/5"
+                    style={{ backgroundColor: swatchFor(c) }}
+                  />
+                </button>
               ))}
             </div>
           </div>
@@ -131,33 +138,9 @@ export default function ProductDetailClient({ product }) {
 
         <div className="mt-6 flex flex-wrap items-baseline gap-3 border-t border-stone-200 pt-6">
           <span className="mono-tag font-mono text-3xl font-semibold text-stone-900">
-            {formatNaira(unitPrice, rate)}
+            {formatNaira(product.price)}
           </span>
-          {product.compareAtPrice && !isBulkQty && (
-            <span className="mono-tag font-mono text-base text-stone-400 line-through">
-              {formatNaira(product.compareAtPrice, rate)}
-            </span>
-          )}
-          {isBulkQty && (
-            <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-mono text-xs font-medium text-emerald-700">
-              Bulk price applied
-            </span>
-          )}
         </div>
-
-        {product.bulk && (
-          <div className="mt-3 rounded-md border border-stone-200 bg-stone-50 px-4 py-3">
-            <p className="font-mono text-xs text-stone-600">
-              Buy {product.bulk.minQty}+ units at{' '}
-              <span className="font-semibold text-emerald-700">
-                {formatNaira(product.bulk.pricePerUnit, rate)}/unit
-              </span>{' '}
-              — save{' '}
-              {formatNaira((product.price - product.bulk.pricePerUnit) * product.bulk.minQty, rate)}{' '}
-              on a {product.bulk.minQty}-unit order.
-            </p>
-          </div>
-        )}
 
         <div className="mt-6 flex items-center gap-3">
           <div className="flex items-center rounded-md border border-stone-300">
@@ -189,7 +172,7 @@ export default function ProductDetailClient({ product }) {
               justAdded ? 'bg-emerald-700' : 'bg-stone-900 hover:bg-stone-700'
             }`}
           >
-            {justAdded ? 'Added to cart ✓' : `Add to Cart — ${formatNaira(lineTotal, rate)}`}
+            {justAdded ? 'Added to cart ✓' : `Add to Cart — ${formatNaira(lineTotal)}`}
           </button>
         </div>
 

@@ -3,11 +3,10 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCart } from '../lib/cart-context';
-import { useExchangeRate, formatNaira } from '../lib/useExchangeRate';
+import { formatNaira } from '../lib/useExchangeRate';
 
 export default function CartPage() {
   const { items, updateQuantity, removeItem, subtotal } = useCart();
-  const rate = useExchangeRate();
 
   if (items.length === 0) {
     return (
@@ -47,9 +46,7 @@ export default function CartPage() {
           <div className="lg:col-span-2">
             <ul className="divide-y divide-stone-200 border-y border-stone-200">
               {items.map((line) => {
-                const isBulk = Boolean(line.bulk) && line.quantity >= line.bulk.minQty;
-                const unitPrice = isBulk ? line.bulk.pricePerUnit : line.price;
-                const lineTotal = unitPrice * line.quantity;
+                const lineTotal = line.price * line.quantity;
 
                 return (
                   <li key={line.lineId} className="flex gap-4 py-5">
@@ -112,13 +109,8 @@ export default function CartPage() {
                         </div>
 
                         <div className="text-right">
-                          {isBulk && (
-                            <p className="font-mono text-[11px] font-medium text-emerald-700">
-                              Bulk price applied
-                            </p>
-                          )}
                           <p className="mono-tag font-mono text-sm font-semibold text-stone-900">
-                            {formatNaira(lineTotal, rate)}
+                            {formatNaira(lineTotal)}
                           </p>
                         </div>
                       </div>
@@ -143,7 +135,7 @@ export default function CartPage() {
 
             <div className="mt-4 flex items-center justify-between text-sm text-stone-600">
               <span>Subtotal</span>
-              <span className="mono-tag font-mono">{formatNaira(subtotal, rate)}</span>
+              <span className="mono-tag font-mono">{formatNaira(subtotal)}</span>
             </div>
             <p className="mt-1 text-xs text-stone-400">
               Taxes and shipping calculated at checkout.

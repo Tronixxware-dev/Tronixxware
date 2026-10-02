@@ -6,8 +6,6 @@ export default function CategoryFilterBar({
   onCategoryChange,
   sort,
   onSortChange,
-  bulkOnly,
-  onBulkOnlyChange,
 }) {
   return (
     <div className="sticky top-0 z-20 -mx-4 border-b border-stone-200 bg-white/90 px-4 py-4 backdrop-blur-md sm:mx-0 sm:rounded-lg sm:border sm:px-6">
@@ -30,16 +28,6 @@ export default function CategoryFilterBar({
         </div>
 
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 font-mono text-xs text-stone-500">
-            <input
-              type="checkbox"
-              checked={bulkOnly}
-              onChange={(e) => onBulkOnlyChange(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-stone-300 text-stone-900 focus:ring-stone-900"
-            />
-            Bulk pricing only
-          </label>
-
           <select
             value={sort}
             onChange={(e) => onSortChange(e.target.value)}

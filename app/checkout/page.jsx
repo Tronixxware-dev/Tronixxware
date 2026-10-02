@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '../lib/cart-context';
-import { useExchangeRate, formatNaira } from '../lib/useExchangeRate';
+import { formatNaira } from '../lib/useExchangeRate';
 import { getCustomerToken, getStoredCustomer, customerFetch, clearCustomerSession } from '../lib/customer-auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
@@ -28,7 +28,6 @@ function Field({ label, name, value, onChange, error, type = 'text', full = fals
 
 export default function CheckoutPage() {
   const { items, subtotal } = useCart();
-  const rate = useExchangeRate();
   const [account, setAccount] = useState(null); // logged-in customer, or null for guest
   const [form, setForm] = useState({
     fullName: '',
@@ -244,35 +243,31 @@ export default function CheckoutPage() {
               Order summary
             </h2>
             <ul className="mt-4 space-y-3">
-              {items.map((line) => {
-                const isBulk = Boolean(line.bulk) && line.quantity >= line.bulk.minQty;
-                const unitPrice = isBulk ? line.bulk.pricePerUnit : line.price;
-                return (
-                  <li key={line.lineId} className="flex items-start justify-between gap-3 text-sm">
-                    <span className="text-stone-600">
-                      {line.name}
-                      <span className="ml-1 font-mono text-xs text-stone-400">× {line.quantity}</span>
-                    </span>
-                    <span className="mono-tag flex-shrink-0 font-mono text-stone-900">
-                      {formatNaira(unitPrice * line.quantity, rate)}
-                    </span>
-                  </li>
-                );
-              })}
+              {items.map((line) => (
+                <li key={line.lineId} className="flex items-start justify-between gap-3 text-sm">
+                  <span className="text-stone-600">
+                    {line.name}
+                    <span className="ml-1 font-mono text-xs text-stone-400">× {line.quantity}</span>
+                  </span>
+                  <span className="mono-tag flex-shrink-0 font-mono text-stone-900">
+                    {formatNaira(line.price * line.quantity)}
+                  </span>
+                </li>
+              ))}
             </ul>
 
             <div className="mt-4 flex items-center justify-between border-t border-stone-200 pt-4 text-sm text-stone-600">
               <span>Subtotal</span>
-              <span className="mono-tag font-mono">{formatNaira(subtotal, rate)}</span>
+              <span className="mono-tag font-mono">{formatNaira(subtotal)}</span>
             </div>
             <p className="mt-1 text-xs text-stone-400">Taxes and shipping calculated at delivery.</p>
 
             <button
               type="submit"
-              disabled={submitting || !rate}
+              disabled={submitting}
               className="mt-6 w-full rounded-md bg-stone-900 py-3 text-sm font-medium text-white hover:bg-stone-700 disabled:cursor-not-allowed disabled:bg-stone-400"
             >
-              {submitting ? 'Redirecting to Paystack…' : `Pay ${formatNaira(subtotal, rate)} with Paystack`}
+              {submitting ? 'Redirecting to Paystack…' : `Pay ${formatNaira(subtotal)} with Paystack`}
             </button>
 
             <Link

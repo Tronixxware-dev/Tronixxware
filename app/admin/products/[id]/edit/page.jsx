@@ -54,16 +54,19 @@ export default function EditProductPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-stone-900">Edit product</h1>
+      <div className="mx-auto max-w-2xl">
+        <h1 className="text-2xl font-semibold text-stone-900">Edit product</h1>
+        <p className="mt-1 text-sm text-stone-500">Update details, pricing, and specs.</p>
+      </div>
 
       {error && (
-        <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mx-auto mt-4 max-w-2xl rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {loading ? (
-        <p className="mt-6 font-mono text-sm text-stone-400">Loading…</p>
+        <p className="mt-6 text-center font-mono text-sm text-stone-400">Loading…</p>
       ) : (
         product && (
           <div className="mt-6">

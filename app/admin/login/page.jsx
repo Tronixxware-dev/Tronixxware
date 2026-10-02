@@ -17,7 +17,7 @@ export default function AdminLoginPage() {
     setError('');
     try {
       await adminLogin(email, password);
-      router.push('/admin/orders');
+      router.push('/admin/products');
     } catch (err) {
       setError(err.message);
     } finally {

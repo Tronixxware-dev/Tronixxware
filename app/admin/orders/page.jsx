@@ -54,10 +54,10 @@ export default function AdminOrdersPage() {
       <h1 className="text-xl font-semibold text-stone-900">Orders</h1>
 
       <nav className="mt-4 flex gap-4 border-b border-stone-200 pb-3 font-mono text-xs uppercase tracking-widest text-stone-500">
-        <span className="text-stone-900">Orders</span>
         <Link href="/admin/products" className="hover:text-stone-900">
           Products
         </Link>
+        <span className="text-stone-900">Orders</span>
       </nav>
 
       {error && (
@@ -71,7 +71,6 @@ export default function AdminOrdersPage() {
       ) : (
         <div className="mt-6 space-y-4">
           {orders.map((order) => {
-            const ngnAmount = formatNgn(order.amountPaidNgn);
             const isPaid = order.paymentStatus === 'paid';
 
             return (
@@ -108,16 +107,8 @@ export default function AdminOrdersPage() {
 
                   <div className="text-right">
                     <p className="mono-tag font-mono text-lg font-semibold text-stone-900">
-                      ${order.subtotal.toLocaleString()}
+                      {formatNgn(order.amountPaidNgn ?? order.subtotal)}
                     </p>
-                    {ngnAmount && (
-                      <p className="mono-tag font-mono text-xs text-emerald-700">
-                        {ngnAmount} paid
-                        {order.exchangeRateUsed
-                          ? ` (rate: ₦${Math.round(order.exchangeRateUsed).toLocaleString('en-NG')}/$)`
-                          : ''}
-                      </p>
-                    )}
                     <select
                       value={order.status}
                       onChange={(e) => handleStatusChange(order._id, e.target.value)}
@@ -141,7 +132,7 @@ export default function AdminOrdersPage() {
                         <span className="ml-1 font-mono text-xs text-stone-400">× {item.quantity}</span>
                       </span>
                       <span className="mono-tag font-mono text-stone-900">
-                        ${item.lineTotal.toLocaleString()}
+                        {formatNgn(item.lineTotal)}
                       </span>
                     </li>
                   ))}

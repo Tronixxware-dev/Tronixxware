@@ -4,7 +4,11 @@ export const categories = [
   { id: 'all', label: 'All' },
   { id: 'phones', label: 'Phones' },
   { id: 'laptops', label: 'Laptops' },
+  { id: 'watches', label: 'Watches' },
+  { id: 'headphones', label: 'Headphones' },
+  { id: 'gaming', label: 'Gaming' },
   { id: 'accessories', label: 'Accessories' },
+  { id: 'powerbanks', label: 'Powerbanks' },
 ];
 
 export async function getProducts() {

@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useCart } from '../lib/cart-context';
 import { getStoredCustomer, getCustomerToken, clearCustomerSession } from '../lib/customer-auth';
+import { formatNaira } from '../lib/useExchangeRate';
 
 // Small hand-drawn icon set — no icon library needed, keeps the bundle
 // light and every icon inherits currentColor so it matches its label.
@@ -100,6 +102,15 @@ function IconClose(props) {
     </svg>
   );
 }
+function IconInfo(props) {
+  return (
+    <svg {...iconProps} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <circle cx="12" cy="8" r="0.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
 function IconSparkle(props) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
@@ -115,25 +126,34 @@ const CATEGORIES = [
   { label: 'Accessories', href: '/products?category=accessories', icon: IconHeadphones },
 ];
 
+// Site pages shown alongside the shop categories — not products, so kept
+// as a separate list rather than folded into CATEGORIES.
+const SITE_LINKS = [{ label: 'About', href: '/about', icon: IconInfo }];
+
 export default function Header({ products }) {
   const router = useRouter();
-  const { itemCount } = useCart();
+  const { items, itemCount, updateQuantity, removeItem, subtotal } = useCart();
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
   const [account, setAccount] = useState(null);
   const accountRef = useRef(null);
+  const cartRef = useRef(null);
 
   useEffect(() => {
     setAccount(getStoredCustomer());
   }, []);
 
-  // Close the account dropdown on an outside click.
+  // Close the account/cart dropdowns on an outside click.
   useEffect(() => {
     function handleClick(e) {
       if (accountRef.current && !accountRef.current.contains(e.target)) {
         setAccountMenuOpen(false);
+      }
+      if (cartRef.current && !cartRef.current.contains(e.target)) {
+        setCartOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClick);
@@ -201,6 +221,16 @@ export default function Header({ products }) {
               {label}
             </Link>
           ))}
+          {SITE_LINKS.map(({ label, href, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className="flex items-center gap-1.5 rounded-full px-3 py-2 font-mono text-xs uppercase tracking-widest text-stone-200 transition hover:scale-105 hover:bg-white/10 hover:text-white active:scale-95"
+            >
+              <Icon width={15} height={15} />
+              {label}
+            </Link>
+          ))}
         </nav>
 
         <div className="relative ml-auto flex flex-1 items-center justify-end gap-2 sm:flex-none sm:gap-3">
@@ -230,7 +260,7 @@ export default function Header({ products }) {
                       <span className="text-stone-900">{p.name}</span>
                       <span className="ml-2 font-mono text-xs text-stone-400">{p.brand}</span>
                     </span>
-                    <span className="mono-tag font-mono text-xs text-stone-500">${p.price.toLocaleString()}</span>
+                    <span className="mono-tag font-mono text-xs text-stone-500">{formatNaira(p.price)}</span>
                   </button>
                 ))}
               </div>
@@ -308,19 +338,123 @@ export default function Header({ products }) {
             )}
           </div>
 
-          {/* Cart */}
-          <Link
-            href="/cart"
-            aria-label="Cart"
-            className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-stone-700 text-stone-200 transition hover:scale-105 hover:border-white hover:text-white active:scale-95"
-          >
-            <IconCart />
-            {itemCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-white font-mono text-[10px] font-semibold text-stone-900">
-                {itemCount}
-              </span>
+          {/* Cart — opens a quick-view dropdown right here instead of
+              navigating to a full page. The dropdown itself links to
+              /cart for anyone who wants the full cart details/page. */}
+          <div ref={cartRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setCartOpen((v) => !v)}
+              aria-label="Cart"
+              aria-expanded={cartOpen}
+              className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-stone-700 text-stone-200 transition hover:scale-105 hover:border-white hover:text-white active:scale-95"
+            >
+              <IconCart />
+              {itemCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-white font-mono text-[10px] font-semibold text-stone-900">
+                  {itemCount}
+                </span>
+              )}
+            </button>
+
+            {cartOpen && (
+              <div className="absolute right-0 top-full z-10 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-lg">
+                {items.length === 0 ? (
+                  <div className="px-5 py-8 text-center">
+                    <p className="text-sm text-stone-500">Your cart is empty.</p>
+                    <Link
+                      href="/products"
+                      onClick={() => setCartOpen(false)}
+                      className="mt-4 inline-block rounded-full bg-stone-900 px-4 py-2 text-xs font-medium uppercase tracking-widest text-white hover:bg-stone-700"
+                    >
+                      Browse products
+                    </Link>
+                  </div>
+                ) : (
+                  <>
+                    <ul className="max-h-80 divide-y divide-stone-100 overflow-y-auto">
+                      {items.map((line) => (
+                        <li key={line.lineId} className="flex gap-3 px-4 py-3">
+                          <div className="relative h-14 w-14 flex-shrink-0 bg-stone-100">
+                            <Image
+                              src={line.image}
+                              alt={line.name}
+                              fill
+                              className="object-contain p-1"
+                              sizes="56px"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-stone-900">{line.name}</p>
+                            {line.colorName && (
+                              <p className="text-xs text-stone-400">{line.colorName}</p>
+                            )}
+                            <div className="mt-1.5 flex items-center justify-between">
+                              <div className="flex items-center rounded-md border border-stone-200">
+                                <button
+                                  type="button"
+                                  onClick={() => updateQuantity(line.lineId, line.quantity - 1)}
+                                  className="flex h-6 w-6 items-center justify-center text-stone-600 hover:bg-stone-50"
+                                  aria-label="Decrease quantity"
+                                >
+                                  −
+                                </button>
+                                <span className="w-6 text-center font-mono text-xs text-stone-900">
+                                  {line.quantity}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => updateQuantity(line.lineId, line.quantity + 1)}
+                                  className="flex h-6 w-6 items-center justify-center text-stone-600 hover:bg-stone-50"
+                                  aria-label="Increase quantity"
+                                >
+                                  +
+                                </button>
+                              </div>
+                              <span className="font-mono text-xs font-semibold text-stone-900">
+                                {formatNaira(line.price * line.quantity)}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeItem(line.lineId)}
+                            aria-label="Remove item"
+                            className="self-start text-stone-300 transition hover:text-red-600"
+                          >
+                            <IconClose width={14} height={14} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <div className="border-t border-stone-100 px-4 py-3">
+                      <div className="flex items-center justify-between text-sm text-stone-600">
+                        <span>Subtotal</span>
+                        <span className="font-mono font-semibold text-stone-900">
+                          {formatNaira(subtotal)}
+                        </span>
+                      </div>
+                      <Link
+                        href="/cart"
+                        onClick={() => setCartOpen(false)}
+                        className="mt-3 block w-full rounded-full border border-stone-900 py-2 text-center text-xs font-medium uppercase tracking-widest text-stone-900 transition hover:bg-stone-900 hover:text-white"
+                      >
+                        View full cart
+                      </Link>
+                      <Link
+                        href="/checkout"
+                        onClick={() => setCartOpen(false)}
+                        className="mt-2 block w-full rounded-full bg-stone-900 py-2 text-center text-xs font-medium uppercase tracking-widest text-white transition hover:bg-stone-700"
+                      >
+                        Checkout
+                      </Link>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
-          </Link>
+          </div>
         </div>
       </div>
 
@@ -374,7 +508,7 @@ export default function Header({ products }) {
                         <span className="text-stone-900">{p.name}</span>
                         <span className="ml-2 font-mono text-xs text-stone-400">{p.brand}</span>
                       </span>
-                      <span className="font-mono text-xs text-stone-500">${p.price.toLocaleString()}</span>
+                      <span className="font-mono text-xs text-stone-500">{formatNaira(p.price)}</span>
                     </button>
                   ))
                 ) : (
@@ -388,6 +522,22 @@ export default function Header({ products }) {
                 Shop by category
               </p>
               {CATEGORIES.map(({ label, href, icon: Icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium text-white transition active:scale-[0.98] active:bg-white/10"
+                >
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white">
+                    <Icon width={17} height={17} />
+                  </span>
+                  {label}
+                </Link>
+              ))}
+            </div>
+
+            <div className="mt-6 space-y-1">
+              {SITE_LINKS.map(({ label, href, icon: Icon }) => (
                 <Link
                   key={href}
                   href={href}

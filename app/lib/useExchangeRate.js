@@ -48,8 +48,9 @@ export function useExchangeRate() {
   return rate; // null while the rate is still loading
 }
 
-export function formatNaira(usdAmount, rate) {
-  if (!rate || typeof usdAmount !== 'number' || Number.isNaN(usdAmount)) return '···';
-  const ngn = Math.round(usdAmount * rate);
-  return `₦${ngn.toLocaleString('en-NG')}`;
+// Prices are stored directly in Naira now (no USD + live-rate conversion),
+// so this just formats the number — no rate needed or used.
+export function formatNaira(amount) {
+  if (typeof amount !== 'number' || Number.isNaN(amount)) return '···';
+  return `₦${Math.round(amount).toLocaleString('en-NG')}`;
 }

@@ -1,17 +1,28 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { adminFetch } from '../../lib/admin-auth';
+import { adminFetch, isSuperAdmin } from '../../lib/admin-auth';
+import { categories as categoryList } from '../../lib/products';
+
+function formatNgn(amount) {
+  if (typeof amount !== 'number') return null;
+  return `₦${amount.toLocaleString('en-NG')}`;
+}
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // Starts false and flips after mount (rather than reading localStorage
+  // directly during render) so the server-rendered markup and the first
+  // client render match — avoiding a hydration warning.
+  const [showOrdersTab, setShowOrdersTab] = useState(false);
 
   useEffect(() => {
     loadProducts();
+    setShowOrdersTab(isSuperAdmin());
   }, []);
 
   async function loadProducts() {
@@ -28,6 +39,17 @@ export default function AdminProductsPage() {
       setLoading(false);
     }
   }
+
+  // Products per category, plus a bucket for anything without a recognized
+  // category (e.g. an old product saved before categories existed).
+  const categoryCounts = useMemo(() => {
+    const counts = {};
+    for (const p of products) {
+      const key = p.category || 'uncategorized';
+      counts[key] = (counts[key] || 0) + 1;
+    }
+    return counts;
+  }, [products]);
 
   async function handleDelete(id, name) {
     if (!window.confirm(`Delete "${name}"? This can't be undone.`)) return;
@@ -54,11 +76,36 @@ export default function AdminProductsPage() {
       </div>
 
       <nav className="mt-4 flex gap-4 border-b border-stone-200 pb-3 font-mono text-xs uppercase tracking-widest text-stone-500">
-        <Link href="/admin/orders" className="hover:text-stone-900">
-          Orders
-        </Link>
         <span className="text-stone-900">Products</span>
+        {showOrdersTab && (
+          <Link href="/admin/orders" className="hover:text-stone-900">
+            Orders
+          </Link>
+        )}
       </nav>
+
+      {!loading && !error && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-stone-900 px-3 py-1 font-mono text-xs font-semibold text-white">
+            {products.length} total
+          </span>
+          {categoryList
+            .filter((c) => c.id !== 'all')
+            .map((c) => (
+              <span
+                key={c.id}
+                className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 font-mono text-xs text-stone-600"
+              >
+                {c.label}: {categoryCounts[c.id] || 0}
+              </span>
+            ))}
+          {categoryCounts.uncategorized > 0 && (
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-mono text-xs text-amber-700">
+              Uncategorized: {categoryCounts.uncategorized}
+            </span>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -75,7 +122,7 @@ export default function AdminProductsPage() {
               key={product.id}
               className="flex flex-wrap items-center gap-4 rounded-md border border-stone-200 bg-white p-4"
             >
-              <div className="relative h-14 w-14 flex-shrink-0 bg-stone-100">
+              <div className="relative h-14 w-14 flex-shrink-0 border border-stone-200 bg-stone-100">
                 <Image
                   src={product.image}
                   alt={product.name}
@@ -90,12 +137,24 @@ export default function AdminProductsPage() {
                   {product.brand}
                 </p>
                 <p className="truncate text-sm font-medium text-stone-900">{product.name}</p>
-                <p className="mt-0.5 font-mono text-xs text-stone-500">id: {product.id}</p>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {product.category && (
+                    <span className="rounded border border-stone-300 bg-stone-50 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-stone-600">
+                      {product.category}
+                    </span>
+                  )}
+                  {product.condition && (
+                    <span className="rounded border border-stone-300 bg-stone-50 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-stone-600">
+                      {product.condition}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 font-mono text-xs text-stone-500">id: {product.id}</p>
               </div>
 
               <div className="text-right">
                 <p className="mono-tag font-mono text-sm font-semibold text-stone-900">
-                  ${Number(product.price).toLocaleString()}
+                  {formatNgn(Number(product.price))}
                 </p>
                 <p
                   className={`font-mono text-xs ${
@@ -109,14 +168,14 @@ export default function AdminProductsPage() {
               <div className="flex gap-2">
                 <Link
                   href={`/admin/products/${product.id}/edit`}
-                  className="rounded-md border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-50"
+                  className="rounded-md border border-cyan-600 px-3 py-1.5 text-xs font-medium text-cyan-600 hover:bg-cyan-50"
                 >
                   Edit
                 </Link>
                 <button
                   type="button"
                   onClick={() => handleDelete(product.id, product.name)}
-                  className="rounded-md border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-500 hover:border-red-300 hover:text-red-600"
+                  className="rounded-md border border-red-600 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
                 >
                   Delete
                 </button>
