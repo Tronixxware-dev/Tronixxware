@@ -140,7 +140,14 @@ export default function Header({ products }) {
   const [cartOpen, setCartOpen] = useState(false);
   const [account, setAccount] = useState(null);
   const accountRef = useRef(null);
-  const cartRef = useRef(null);
+  // Two cart triggers now exist — a nav pill for desktop (lg:) and a
+  // compact icon button for mobile/compact layouts — but only one is ever
+  // actually visible at a given viewport width (CSS handles that), and
+  // they share the same cartOpen state and dropdown panel. We track both
+  // refs so the outside-click handler below works no matter which one is
+  // on screen.
+  const cartNavRef = useRef(null);
+  const cartMobileRef = useRef(null);
 
   useEffect(() => {
     setAccount(getStoredCustomer());
@@ -152,7 +159,10 @@ export default function Header({ products }) {
       if (accountRef.current && !accountRef.current.contains(e.target)) {
         setAccountMenuOpen(false);
       }
-      if (cartRef.current && !cartRef.current.contains(e.target)) {
+      const insideCart =
+        (cartNavRef.current && cartNavRef.current.contains(e.target)) ||
+        (cartMobileRef.current && cartMobileRef.current.contains(e.target));
+      if (!insideCart) {
         setCartOpen(false);
       }
     }
@@ -190,15 +200,116 @@ export default function Header({ products }) {
     setMobileOpen(false);
   }
 
+  // Shared dropdown panel content — rendered inside whichever cart trigger
+  // (desktop nav pill or mobile icon button) happens to be visible, so the
+  // markup only has to live in one place.
+  const cartPanel = (
+    <div className="absolute right-0 top-full z-10 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-lg">
+      {items.length === 0 ? (
+        <div className="px-5 py-8 text-center">
+          <p className="text-sm text-stone-500">Your cart is empty.</p>
+          <Link
+            href="/products"
+            onClick={() => setCartOpen(false)}
+            className="mt-4 inline-block rounded-full bg-stone-900 px-4 py-2 text-xs font-medium uppercase tracking-widest text-white hover:bg-stone-700"
+          >
+            Browse products
+          </Link>
+        </div>
+      ) : (
+        <>
+          <ul className="max-h-80 divide-y divide-stone-100 overflow-y-auto">
+            {items.map((line) => (
+              <li key={line.lineId} className="flex gap-3 px-4 py-3">
+                <div className="relative h-14 w-14 flex-shrink-0 bg-stone-100">
+                  <Image
+                    src={line.image}
+                    alt={line.name}
+                    fill
+                    className="object-contain p-1"
+                    sizes="56px"
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-stone-900">{line.name}</p>
+                  {line.colorName && (
+                    <p className="text-xs text-stone-400">{line.colorName}</p>
+                  )}
+                  <div className="mt-1.5 flex items-center justify-between">
+                    <div className="flex items-center rounded-md border border-stone-200">
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(line.lineId, line.quantity - 1)}
+                        className="flex h-6 w-6 items-center justify-center text-stone-600 hover:bg-stone-50"
+                        aria-label="Decrease quantity"
+                      >
+                        −
+                      </button>
+                      <span className="w-6 text-center font-mono text-xs text-stone-900">
+                        {line.quantity}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(line.lineId, line.quantity + 1)}
+                        className="flex h-6 w-6 items-center justify-center text-stone-600 hover:bg-stone-50"
+                        aria-label="Increase quantity"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="font-mono text-xs font-semibold text-stone-900">
+                      {formatNaira(line.price * line.quantity)}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeItem(line.lineId)}
+                  aria-label="Remove item"
+                  className="self-start text-stone-300 transition hover:text-red-600"
+                >
+                  <IconClose width={14} height={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <div className="border-t border-stone-100 px-4 py-3">
+            <div className="flex items-center justify-between text-sm text-stone-600">
+              <span>Subtotal</span>
+              <span className="font-mono font-semibold text-stone-900">
+                {formatNaira(subtotal)}
+              </span>
+            </div>
+            <Link
+              href="/cart"
+              onClick={() => setCartOpen(false)}
+              className="mt-3 block w-full rounded-full border border-stone-900 py-2 text-center text-xs font-medium uppercase tracking-widest text-stone-900 transition hover:bg-stone-900 hover:text-white"
+            >
+              View full cart
+            </Link>
+            <Link
+              href="/checkout"
+              onClick={() => setCartOpen(false)}
+              className="mt-2 block w-full rounded-full bg-stone-900 py-2 text-center text-xs font-medium uppercase tracking-widest text-white transition hover:bg-stone-700"
+            >
+              Checkout
+            </Link>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <header className="sticky top-0 z-50 border-b border-stone-800 bg-black">
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-4 sm:px-8 lg:px-12">
-        {/* Hamburger — mobile only */}
+        {/* Hamburger — shown until there's room for the full desktop nav */}
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
           aria-label="Open menu"
-          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-stone-200 transition hover:scale-105 hover:bg-white/10 hover:text-white active:scale-95 sm:hidden"
+          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-stone-200 transition hover:scale-105 hover:bg-white/10 hover:text-white active:scale-95 lg:hidden"
         >
           <IconMenu />
         </button>
@@ -209,8 +320,11 @@ export default function Header({ products }) {
           </span>
         </Link>
 
-        {/* Desktop nav — icon + label pills */}
-        <nav className="hidden items-center gap-1 sm:flex">
+        {/* Desktop nav — icon + label pills. Gated to lg: (not sm:) because
+            the logo + 5 nav pills + search box + account + cart genuinely
+            need that much room; turning this on at sm: (640px) overflowed
+            the row and pushed the cart icon off-screen. */}
+        <nav className="hidden items-center gap-1 lg:flex">
           {CATEGORIES.map(({ label, href, icon: Icon }) => (
             <Link
               key={href}
@@ -231,11 +345,33 @@ export default function Header({ products }) {
               {label}
             </Link>
           ))}
+
+          {/* Cart pill — lives right here in the nav row, alongside the
+              categories/About pills that are confirmed to render fine on
+              desktop, instead of over in the far-right icon cluster. */}
+          <div ref={cartNavRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setCartOpen((v) => !v)}
+              aria-label="Cart"
+              aria-expanded={cartOpen}
+              className="flex items-center gap-1.5 rounded-full px-3 py-2 font-mono text-xs uppercase tracking-widest text-stone-200 transition hover:scale-105 hover:bg-white/10 hover:text-white active:scale-95"
+            >
+              <IconCart width={15} height={15} />
+              Cart
+              {itemCount > 0 && (
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white font-mono text-[10px] font-semibold text-stone-900">
+                  {itemCount}
+                </span>
+              )}
+            </button>
+            {cartOpen && cartPanel}
+          </div>
         </nav>
 
-        <div className="relative ml-auto flex flex-1 items-center justify-end gap-2 sm:flex-none sm:gap-3">
+        <div className="relative ml-auto flex flex-1 items-center justify-end gap-2 lg:flex-none lg:gap-3">
           {/* Search — pill shaped */}
-          <div className="relative hidden w-full max-w-xs sm:block sm:w-64">
+          <div className="relative hidden w-full max-w-xs lg:block lg:w-64">
             <IconSearch className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-300" width={16} height={16} />
             <input
               type="text"
@@ -273,18 +409,18 @@ export default function Header({ products }) {
             )}
           </div>
 
-          {/* Search icon — mobile only, opens the hamburger menu on its search tab */}
+          {/* Search icon — compact layout only, opens the hamburger menu on its search tab */}
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
             aria-label="Search"
-            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-stone-200 transition hover:scale-105 hover:bg-white/10 hover:text-white active:scale-95 sm:hidden"
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-stone-200 transition hover:scale-105 hover:bg-white/10 hover:text-white active:scale-95 lg:hidden"
           >
             <IconSearch />
           </button>
 
           {/* Account */}
-          <div ref={accountRef} className="relative hidden sm:block">
+          <div ref={accountRef} className="relative hidden lg:block">
             {account ? (
               <>
                 <button
@@ -338,10 +474,10 @@ export default function Header({ products }) {
             )}
           </div>
 
-          {/* Cart — opens a quick-view dropdown right here instead of
-              navigating to a full page. The dropdown itself links to
-              /cart for anyone who wants the full cart details/page. */}
-          <div ref={cartRef} className="relative">
+          {/* Cart — compact icon-only button, mobile/compact layouts only.
+              Desktop has its own pill up in the nav row instead; both
+              share the same cartOpen state and cartPanel markup. */}
+          <div ref={cartMobileRef} className="relative lg:hidden">
             <button
               type="button"
               onClick={() => setCartOpen((v) => !v)}
@@ -356,111 +492,14 @@ export default function Header({ products }) {
                 </span>
               )}
             </button>
-
-            {cartOpen && (
-              <div className="absolute right-0 top-full z-10 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-lg">
-                {items.length === 0 ? (
-                  <div className="px-5 py-8 text-center">
-                    <p className="text-sm text-stone-500">Your cart is empty.</p>
-                    <Link
-                      href="/products"
-                      onClick={() => setCartOpen(false)}
-                      className="mt-4 inline-block rounded-full bg-stone-900 px-4 py-2 text-xs font-medium uppercase tracking-widest text-white hover:bg-stone-700"
-                    >
-                      Browse products
-                    </Link>
-                  </div>
-                ) : (
-                  <>
-                    <ul className="max-h-80 divide-y divide-stone-100 overflow-y-auto">
-                      {items.map((line) => (
-                        <li key={line.lineId} className="flex gap-3 px-4 py-3">
-                          <div className="relative h-14 w-14 flex-shrink-0 bg-stone-100">
-                            <Image
-                              src={line.image}
-                              alt={line.name}
-                              fill
-                              className="object-contain p-1"
-                              sizes="56px"
-                            />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium text-stone-900">{line.name}</p>
-                            {line.colorName && (
-                              <p className="text-xs text-stone-400">{line.colorName}</p>
-                            )}
-                            <div className="mt-1.5 flex items-center justify-between">
-                              <div className="flex items-center rounded-md border border-stone-200">
-                                <button
-                                  type="button"
-                                  onClick={() => updateQuantity(line.lineId, line.quantity - 1)}
-                                  className="flex h-6 w-6 items-center justify-center text-stone-600 hover:bg-stone-50"
-                                  aria-label="Decrease quantity"
-                                >
-                                  −
-                                </button>
-                                <span className="w-6 text-center font-mono text-xs text-stone-900">
-                                  {line.quantity}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => updateQuantity(line.lineId, line.quantity + 1)}
-                                  className="flex h-6 w-6 items-center justify-center text-stone-600 hover:bg-stone-50"
-                                  aria-label="Increase quantity"
-                                >
-                                  +
-                                </button>
-                              </div>
-                              <span className="font-mono text-xs font-semibold text-stone-900">
-                                {formatNaira(line.price * line.quantity)}
-                              </span>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeItem(line.lineId)}
-                            aria-label="Remove item"
-                            className="self-start text-stone-300 transition hover:text-red-600"
-                          >
-                            <IconClose width={14} height={14} />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-
-                    <div className="border-t border-stone-100 px-4 py-3">
-                      <div className="flex items-center justify-between text-sm text-stone-600">
-                        <span>Subtotal</span>
-                        <span className="font-mono font-semibold text-stone-900">
-                          {formatNaira(subtotal)}
-                        </span>
-                      </div>
-                      <Link
-                        href="/cart"
-                        onClick={() => setCartOpen(false)}
-                        className="mt-3 block w-full rounded-full border border-stone-900 py-2 text-center text-xs font-medium uppercase tracking-widest text-stone-900 transition hover:bg-stone-900 hover:text-white"
-                      >
-                        View full cart
-                      </Link>
-                      <Link
-                        href="/checkout"
-                        onClick={() => setCartOpen(false)}
-                        className="mt-2 block w-full rounded-full bg-stone-900 py-2 text-center text-xs font-medium uppercase tracking-widest text-white transition hover:bg-stone-700"
-                      >
-                        Checkout
-                      </Link>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+            {cartOpen && cartPanel}
           </div>
         </div>
       </div>
 
       {/* Mobile menu overlay */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 sm:hidden">
+        <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
             aria-label="Close menu"
