@@ -4,9 +4,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ProductCard from './ProductCard';
 import CategoryFilterBar from './CategoryFilterBar';
+import { conditionFilterOptions, normalizeCondition } from '../lib/condition';
 
 export default function ShopClient({ products, categories }) {
   const [activeCategory, setActiveCategory] = useState('all');
+  const [activeCondition, setActiveCondition] = useState('all');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
   const [sort, setSort] = useState('featured');
 
   const searchParams = useSearchParams();
@@ -20,12 +24,36 @@ export default function ShopClient({ products, categories }) {
     }
   }, [urlCategory]);
 
+  const conditionOptions = useMemo(() => conditionFilterOptions(products), [products]);
+
+  // Cheapest / priciest product in the whole catalogue — shown as the
+  // placeholder hint in the Min / Max boxes.
+  const priceBounds = useMemo(() => {
+    const prices = products.map((p) => p.price).filter((n) => typeof n === 'number');
+    if (prices.length === 0) return null;
+    return { min: Math.min(...prices), max: Math.max(...prices) };
+  }, [products]);
+
   const filtered = useMemo(() => {
     let list = [...products];
 
     if (activeCategory !== 'all') {
       list = list.filter((p) => p.category === activeCategory);
     }
+
+    if (activeCondition !== 'all') {
+      list = list.filter((p) => normalizeCondition(p.condition) === activeCondition);
+    }
+
+    const min = minPrice === '' ? null : Number(minPrice);
+    const max = maxPrice === '' ? null : Number(maxPrice);
+    if (min !== null && !Number.isNaN(min)) {
+      list = list.filter((p) => p.price >= min);
+    }
+    if (max !== null && !Number.isNaN(max)) {
+      list = list.filter((p) => p.price <= max);
+    }
+
     switch (sort) {
       case 'price-asc':
         list.sort((a, b) => a.price - b.price);
@@ -40,7 +68,17 @@ export default function ShopClient({ products, categories }) {
         break;
     }
     return list;
-  }, [products, activeCategory, sort]);
+  }, [products, activeCategory, activeCondition, minPrice, maxPrice, sort]);
+
+  const hasActiveFilters =
+    activeCategory !== 'all' || activeCondition !== 'all' || minPrice !== '' || maxPrice !== '';
+
+  function clearFilters() {
+    setActiveCategory('all');
+    setActiveCondition('all');
+    setMinPrice('');
+    setMaxPrice('');
+  }
 
   return (
     <div>
@@ -50,6 +88,16 @@ export default function ShopClient({ products, categories }) {
         onCategoryChange={setActiveCategory}
         sort={sort}
         onSortChange={setSort}
+        conditionOptions={conditionOptions}
+        activeCondition={activeCondition}
+        onConditionChange={setActiveCondition}
+        minPrice={minPrice}
+        maxPrice={maxPrice}
+        onMinPriceChange={setMinPrice}
+        onMaxPriceChange={setMaxPrice}
+        priceBounds={priceBounds}
+        hasActiveFilters={hasActiveFilters}
+        onClearFilters={clearFilters}
       />
 
       <div className="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-3 sm:gap-8 lg:grid-cols-4">

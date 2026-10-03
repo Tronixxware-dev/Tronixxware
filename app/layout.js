@@ -2,6 +2,7 @@ import { Inter, IBM_Plex_Mono, Orbitron } from 'next/font/google';
 import './globals.css';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import ClickEffect from './components/ClickEffect';
 import { CartProvider } from './lib/cart-context';
 import { getProducts } from './lib/products';
 
@@ -31,6 +32,7 @@ export default async function RootLayout({ children }) {
   return (
     <html lang="en" className={`${inter.variable} ${plexMono.variable} ${eurostile.variable}`}>
       <body className="flex min-h-screen flex-col bg-white font-sans text-stone-900 antialiased">
+        <ClickEffect />
         <CartProvider>
           <Header products={products} />
           <div className="flex-1">{children}</div>

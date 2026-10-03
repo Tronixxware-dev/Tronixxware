@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useCart } from '../lib/cart-context';
 import { formatNaira } from '../lib/useExchangeRate';
 import { parseColors, swatchFor } from '../lib/colorSwatches';
+import { conditionLabel, conditionBadgeClasses, conditionTextClasses } from '../lib/condition';
 
 export default function ProductCard({ product }) {
   const { addItem } = useCart();
@@ -16,7 +17,6 @@ export default function ProductCard({ product }) {
   // pair of earbuds just won't have "Inches" or "Operating System" set.
   const specChips = [
     product.storage,
-    product.cardSlot,
     product.inches,
     product.operatingSystem,
   ].filter(Boolean);
@@ -42,9 +42,11 @@ export default function ProductCard({ product }) {
           />
 
           <div className="absolute left-3 top-3 flex flex-col gap-2">
-            <span className="rounded-full border border-stone-200 bg-white/90 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-stone-600 backdrop-blur">
-              {product.condition}
-            </span>
+            {product.condition && (
+              <span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider backdrop-blur ${conditionBadgeClasses(product.condition)}`}>
+                {conditionLabel(product.condition)}
+              </span>
+            )}
           </div>
 
           <button
@@ -70,6 +72,13 @@ export default function ProductCard({ product }) {
           <h3 className="mt-1 line-clamp-1 text-sm font-medium text-stone-900">
             {product.name}
           </h3>
+
+          {product.condition && (
+            <p className={`mt-1 flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-wide ${conditionTextClasses(product.condition).text}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${conditionTextClasses(product.condition).dot}`} />
+              {conditionLabel(product.condition)}
+            </p>
+          )}
 
           {product.rating > 0 && (
             <div className="mt-1 flex items-center gap-1 text-xs text-stone-500">

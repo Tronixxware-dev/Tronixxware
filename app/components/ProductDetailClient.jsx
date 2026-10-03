@@ -5,6 +5,8 @@ import Image from 'next/image';
 import { useCart } from '../lib/cart-context';
 import { formatNaira } from '../lib/useExchangeRate';
 import { parseColors, swatchFor } from '../lib/colorSwatches';
+import { conditionLabel, conditionBadgeClasses } from '../lib/condition';
+import { generateProductDetails } from '../lib/productDetails';
 
 export default function ProductDetailClient({ product }) {
   const { addItem } = useCart();
@@ -20,10 +22,25 @@ export default function ProductDetailClient({ product }) {
   // Only the spec chips that actually apply to this product show up.
   const specChips = [
     product.storage,
-    product.cardSlot,
     product.inches,
     product.operatingSystem,
   ].filter(Boolean);
+
+  // Use the details saved on the product; if there aren't any (older products
+  // added before the field existed), build them from the model/specs so
+  // phones and laptops always have a details section.
+  const details =
+    (product.description && product.description.trim()) ||
+    generateProductDetails({
+      name: product.name,
+      brand: product.brand,
+      category: product.category,
+      condition: product.condition,
+      storage: product.storage,
+      inches: product.inches,
+      operatingSystem: product.operatingSystem,
+      colors,
+    });
 
   const lineTotal = product.price * quantity;
 
@@ -91,9 +108,11 @@ export default function ProductDetailClient({ product }) {
               <span className="text-stone-300">·</span>
             </>
           )}
-          <span className="font-mono text-xs uppercase tracking-wide text-stone-500">
-            {product.condition}
-          </span>
+          {product.condition && (
+            <span className={`rounded-full border px-2.5 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wide ${conditionBadgeClasses(product.condition)}`}>
+              {conditionLabel(product.condition)}
+            </span>
+          )}
         </div>
 
         {specChips.length > 0 && (
@@ -179,6 +198,17 @@ export default function ProductDetailClient({ product }) {
         <p className="mt-3 font-mono text-xs text-stone-400">
           {product.unitStock} in stock
         </p>
+
+        {details && (
+          <div className="mt-8 border-t border-stone-200 pt-6">
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-stone-500">
+              Product details
+            </h2>
+            <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-stone-600">
+              {details}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

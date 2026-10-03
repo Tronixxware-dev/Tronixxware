@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { adminUploadImage } from '../../lib/admin-auth';
 import { formatNaira } from '../../lib/useExchangeRate';
 import { swatchFor } from '../../lib/colorSwatches';
+import { generateProductDetails } from '../../lib/productDetails';
+import { conditionLabel } from '../../lib/condition';
 
 // Same six categories used across the storefront (nav, "Shop by category",
 // and the /products filter bar) — see app/lib/products.js.
@@ -18,7 +20,7 @@ const CATEGORIES = [
   { value: 'powerbanks', label: 'Powerbanks' },
 ];
 
-const CONDITIONS = ['New', 'Refurbished', 'Used'];
+const CONDITIONS = ['New', 'Used', 'LLA', 'Refurbished'];
 const STORAGE_OPTIONS = ['32GB', '64GB', '128GB', '256GB', '512GB', '1TB', '2TB'];
 const CARD_SLOT_OPTIONS = ['Yes', 'No'];
 const OS_OPTIONS = [
@@ -119,6 +121,7 @@ function productToFormState(product) {
     reviews: product?.reviews != null ? String(product.reviews) : '',
     category,
     condition: product?.condition || 'New',
+    description: product?.description || '',
     storage: product?.storage || '',
     cardSlot: product?.cardSlot || '',
     inches: product?.inches || '',
@@ -144,6 +147,7 @@ function formStateToPayload(form) {
     reviews: form.reviews.trim() !== '' ? Number(form.reviews) : 0,
     category: form.category,
     condition: form.condition,
+    description: form.description.trim(),
   };
 
   ['storage', 'cardSlot', 'inches', 'operatingSystem'].forEach((key) => {
@@ -191,6 +195,57 @@ export default function ProductForm({ product, onSubmit, submitLabel = 'Save pro
   function update(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
+
+  // --- Auto-generated product details (phones + laptops) -----------------
+  // Build the description from whatever has been picked so far. It keeps
+  // itself up to date (new model, storage, colours, condition...) only while
+  // the Product details box is empty or still holds the last auto-generated
+  // text — as soon as you type your own wording into it, auto-fill stops
+  // touching it. The "Auto-generate" button always overwrites on demand.
+  const lastAutoDescription = useRef('');
+
+  function buildGeneratedDetails(f) {
+    return generateProductDetails({
+      name: f.name,
+      brand: f.brand === OTHER_BRAND ? f.brandCustom : f.brand,
+      category: f.category,
+      condition: f.condition,
+      storage: f.storage,
+      inches: f.inches,
+      operatingSystem: f.operatingSystem,
+      colors: f.colors,
+    });
+  }
+
+  useEffect(() => {
+    const generated = buildGeneratedDetails(form);
+    setForm((prev) => {
+      const untouched = prev.description === '' || prev.description === lastAutoDescription.current;
+      lastAutoDescription.current = generated;
+      if (!untouched || prev.description === generated) return prev;
+      return { ...prev, description: generated };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    form.name,
+    form.brand,
+    form.brandCustom,
+    form.category,
+    form.condition,
+    form.storage,
+    form.inches,
+    form.operatingSystem,
+    form.colors,
+  ]);
+
+  function handleAutoGenerate() {
+    const generated = buildGeneratedDetails(form);
+    if (!generated) return;
+    lastAutoDescription.current = generated;
+    update('description', generated);
+  }
+
+  const canAutoGenerate = Boolean(buildGeneratedDetails(form));
 
   function addColorChip() {
     const name = form.colorInput.trim();
@@ -494,11 +549,40 @@ export default function ProductForm({ product, onSubmit, submitLabel = 'Save pro
             >
               {CONDITIONS.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {conditionLabel(c)}
                 </option>
               ))}
             </select>
           </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between gap-3">
+            <label className={labelClass}>
+              Product details <span className="font-normal text-stone-400">(optional)</span>
+            </label>
+            {canAutoGenerate && (
+              <button
+                type="button"
+                onClick={handleAutoGenerate}
+                className="mt-1.5 rounded-full border border-stone-200 px-3 py-1 text-xs font-medium text-stone-600 transition hover:border-stone-900 hover:text-stone-900"
+              >
+                Auto-generate
+              </button>
+            )}
+          </div>
+          <textarea
+            rows={5}
+            value={form.description}
+            onChange={(e) => update('description', e.target.value)}
+            placeholder={'Describe the product — battery health, what\'s in the box, warranty, any scratches, etc.\nPress Enter for a new line.'}
+            className={`${inputClass} resize-y`}
+          />
+          <p className="mt-1 text-xs text-stone-400">
+            {canAutoGenerate
+              ? 'Auto-filled from the model, condition, storage and colours you pick — review it, then edit freely. Once you change the text, it stops auto-updating (use Auto-generate to rebuild it).'
+              : 'Shown on the product page under the price and stock. Auto-fill works for phones and laptops once you enter a name.'}
+          </p>
         </div>
       </div>
 

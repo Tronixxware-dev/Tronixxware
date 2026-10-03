@@ -21,6 +21,34 @@ body {
   letter-spacing: 0.02em;
 }
 
+/* Click / tap ripple — spawned by components/ClickEffect.jsx. Dark-cyan ring
+   with a thin white edge so it shows on both the black header and the white
+   page. */
+.click-ripple {
+  position: fixed;
+  z-index: 9999;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 9999px;
+  pointer-events: none;
+  border: 1.5px solid rgba(8, 145, 178, 0.95);
+  background: rgba(34, 211, 238, 0.35);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+  animation: click-ripple 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+
+@keyframes click-ripple {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
 .line-clamp-1 {
   display: -webkit-box;
   -webkit-line-clamp: 1;
